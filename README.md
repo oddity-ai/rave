@@ -1,10 +1,6 @@
-<p align="center">
-
 # `rave`
 
 Rust audio/video engine
-
-</p>
 
 ## Disclaimer
 
