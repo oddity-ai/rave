@@ -1,5 +1,3 @@
-use bytes::Bytes;
-
 use crate::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
