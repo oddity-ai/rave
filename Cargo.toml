@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "src/rave",
+    "src/rave_h264",
+    "src/rave_mp4",
+    "src/rave_rtp",
+    "src/rave_rtsp",
+    "src/rave_types",
+]
