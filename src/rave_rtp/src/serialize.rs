@@ -1,14 +1,40 @@
 use bytes::{BufMut, BytesMut};
 
 use crate::error::{Error, Result};
-use crate::packet::Packet;
+use crate::packet::{Header, Packet, PacketPadded};
 
 pub trait Serialize {
-    fn serialize(&self, dst: &mut BytesMut) -> Result<()>;
+    fn serialize(self, dst: &mut BytesMut) -> Result<()>;
 }
 
 impl Serialize for Packet {
-    fn serialize(&self, dst: &mut BytesMut) -> Result<()> {
+    fn serialize(self, dst: &mut BytesMut) -> Result<()> {
+        assert!(
+            !self.header.padding,
+            "header padding bit must be false when serializing packet without padding"
+        );
+        self.header.serialize(dst)?;
+        dst.put(self.payload);
+        Ok(())
+    }
+}
+
+impl Serialize for PacketPadded {
+    fn serialize(self, dst: &mut BytesMut) -> Result<()> {
+        assert!(
+            self.packet.header.padding,
+            "header padding bit must be true when serializing packet with padding",
+        );
+        self.packet.serialize(dst)?;
+        let padding_len = calculate_padding(self.padding_divisor, dst.len())?;
+        dst.put_bytes(0x00_u8, (padding_len - 1) as usize);
+        dst.put_u8(padding_len);
+        Ok(())
+    }
+}
+
+impl Serialize for Header {
+    fn serialize(self, dst: &mut BytesMut) -> Result<()> {
         dst.reserve(12 + (self.csrc.len() * 4)); // TODO: count extension
         let version = (self.version.as_number() as u8) << 6;
         let csrc_count: u8 = self
@@ -32,19 +58,31 @@ impl Serialize for Packet {
         dst.put_u16(self.sequence_number);
         dst.put_u32(self.timestamp);
         dst.put_u32(self.ssrc);
-        for csrc_item in self.csrc.iter() {
-            dst.put_u32(*csrc_item);
+        for csrc_item in self.csrc {
+            dst.put_u32(csrc_item);
         }
 
-        if let Some(extension) = self.extension.as_ref() {
+        if let Some(extension) = self.extension {
             dst.put_u16(extension.profile_identifier);
             dst.put_u16(extension.data.len().try_into().map_err(|_| {
                 Error::ExtensionLengthInvalid {
                     length: extension.data.len(),
                 }
             })?);
+            for extension_data in extension.data {
+                dst.put_u32(extension_data);
+            }
         }
 
         Ok(())
     }
+}
+
+fn calculate_padding(padding_divisor: u8, len: usize) -> Result<u8> {
+    ((padding_divisor as usize) - (len % (padding_divisor as usize)))
+        .try_into()
+        .map_err(|_| Error::PaddingLengthInvalid {
+            padding_divisor,
+            len,
+        })
 }

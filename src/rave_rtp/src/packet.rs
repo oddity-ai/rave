@@ -1,7 +1,37 @@
+use bytes::Bytes;
+
 use crate::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Packet {
+    pub header: Header,
+    pub payload: Bytes,
+}
+
+impl Packet {
+    pub fn new(mut header: Header, payload: Bytes) -> Self {
+        header.padding = false;
+        Self { header, payload }
+    }
+
+    #[inline]
+    pub fn with_padding(mut self, padding_divisor: u8) -> PacketPadded {
+        self.header.padding = true;
+        PacketPadded {
+            packet: self,
+            padding_divisor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketPadded {
+    pub packet: Packet,
+    pub padding_divisor: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Header {
     pub version: Version,
     pub padding: bool,
     pub marker: bool,
