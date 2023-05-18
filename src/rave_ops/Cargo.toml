@@ -1,0 +1,7 @@
+[package]
+name = "rave_ops"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rave_types = { path = "../rave_types" }
