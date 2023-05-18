@@ -1,6 +1,7 @@
 use bytes::Bytes;
 
 use crate::error::Error;
+use crate::packetization::PacketizationParameters;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Packet {
@@ -12,6 +13,10 @@ impl Packet {
     pub fn new(mut header: Header, payload: Bytes) -> Self {
         header.padding = false;
         Self { header, payload }
+    }
+
+    pub fn build(payload_type: u8, packetization_parameters: PacketizationParameters) -> Self {
+        todo!()
     }
 
     #[inline]
