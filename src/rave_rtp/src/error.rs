@@ -1,5 +1,7 @@
 pub type Result<T> = std::result::Result<T, Error>;
 
+use crate::packetization::h264::H264PacketizationMode;
+
 #[derive(Debug)]
 pub enum Error {
     VersionUnknown { version: usize },
@@ -7,6 +9,8 @@ pub enum Error {
     ExtensionLengthInvalid { length: usize },
     PaddingLengthInvalid { padding_divisor: u8, len: usize },
     NotEnoughData { have: usize, need: usize },
+    H264PacketizationModeUnknown { mode: usize },
+    H264PacketizationModeUnsupported { mode: H264PacketizationMode },
 }
 
 impl std::fmt::Display for Error {
@@ -31,6 +35,12 @@ impl std::fmt::Display for Error {
             }
             Error::NotEnoughData { have, need } => {
                 write!(f, "buffer too small: {have} (need {need})")
+            }
+            Error::H264PacketizationModeUnknown { mode } => {
+                write!(f, "h264 packetization mode unknown: {mode})")
+            }
+            Error::H264PacketizationModeUnsupported { mode } => {
+                write!(f, "h264 packetization mode not supported: {mode})")
             }
         }
     }
