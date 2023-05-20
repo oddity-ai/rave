@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 bytes = { version = "1.4" }
+rand = { version = "0.8" }

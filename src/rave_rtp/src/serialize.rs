@@ -1,10 +1,11 @@
 use bytes::{BufMut, BytesMut};
 
 use crate::error::{Error, Result};
-use crate::packet::{Header, Packet, PacketPadded};
+use crate::packet::{Extension, Header, Packet, PacketPadded};
 
 pub trait Serialize {
     fn serialize(self, dst: &mut BytesMut) -> Result<()>;
+    fn serialized_len(&self) -> usize;
 }
 
 impl Serialize for Packet {
@@ -17,6 +18,10 @@ impl Serialize for Packet {
         dst.put(self.payload);
         Ok(())
     }
+
+    fn serialized_len(&self) -> usize {
+        self.header.serialized_len() + self.payload.len()
+    }
 }
 
 impl Serialize for PacketPadded {
@@ -26,10 +31,20 @@ impl Serialize for PacketPadded {
             "header padding bit must be true when serializing packet with padding",
         );
         self.packet.serialize(dst)?;
-        let padding_len = calculate_padding(self.padding_divisor, dst.len())?;
+        let padding_len = calculate_padding(self.padding_divisor, dst.len())
+            .try_into()
+            .map_err(|_| Error::PaddingLengthInvalid {
+                padding_divisor: self.padding_divisor,
+                len: dst.len(),
+            })?;
         dst.put_bytes(0x00_u8, (padding_len - 1) as usize);
         dst.put_u8(padding_len);
         Ok(())
+    }
+
+    fn serialized_len(&self) -> usize {
+        let packet_len = self.packet.serialized_len();
+        packet_len + calculate_padding(self.padding_divisor, packet_len)
     }
 }
 
@@ -63,26 +78,46 @@ impl Serialize for Header {
         }
 
         if let Some(extension) = self.extension {
-            dst.put_u16(extension.profile_identifier);
-            dst.put_u16(extension.data.len().try_into().map_err(|_| {
-                Error::ExtensionLengthInvalid {
-                    length: extension.data.len(),
-                }
-            })?);
-            for extension_data in extension.data {
-                dst.put_u32(extension_data);
-            }
+            extension.serialize(dst)?;
         }
 
         Ok(())
     }
+
+    fn serialized_len(&self) -> usize {
+        12 + (self.csrc.len() * 4)
+            + (self
+                .extension
+                .as_ref()
+                .map(|extension| extension.serialized_len())
+                .unwrap_or(0))
+    }
 }
 
-fn calculate_padding(padding_divisor: u8, len: usize) -> Result<u8> {
-    ((padding_divisor as usize) - (len % (padding_divisor as usize)))
-        .try_into()
-        .map_err(|_| Error::PaddingLengthInvalid {
-            padding_divisor,
-            len,
-        })
+impl Serialize for Extension {
+    fn serialize(self, dst: &mut BytesMut) -> Result<()> {
+        dst.put_u16(self.profile_identifier);
+        dst.put_u16(
+            self.data
+                .len()
+                .try_into()
+                .map_err(|_| Error::ExtensionLengthInvalid {
+                    len: self.data.len(),
+                })?,
+        );
+        for data_item in self.data {
+            dst.put_u32(data_item);
+        }
+
+        Ok(())
+    }
+
+    fn serialized_len(&self) -> usize {
+        4 + (self.data.len() * 4)
+    }
+}
+
+#[inline]
+fn calculate_padding(padding_divisor: u8, len: usize) -> usize {
+    (padding_divisor as usize) - (len % (padding_divisor as usize))
 }
