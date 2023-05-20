@@ -287,6 +287,8 @@ fn split_nals(mut data: Bytes) -> Result<Vec<Bytes>> {
     Ok(nals)
 }
 
+// TODO: resequencing here (or maybe somewhere else?)
+
 #[derive(Debug)]
 pub struct H264Depacketizer {
     // TODO
