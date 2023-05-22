@@ -13,7 +13,7 @@ pub struct H264Packetizer {
 
 impl H264Packetizer {
     /// Create a new packetizer to create RTP packets with H264 encoded pictures.
-    ///
+    /// TODO: section move to below
     /// # Arguments
     ///
     /// * `mode` - Packetizer mode to use.
@@ -286,6 +286,8 @@ fn split_nals(mut data: Bytes) -> Result<Vec<Bytes>> {
 
     Ok(nals)
 }
+
+// TODO: resequencing here (or maybe somewhere else?)
 
 #[derive(Debug)]
 pub struct H264Depacketizer {
