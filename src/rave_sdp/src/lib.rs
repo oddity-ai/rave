@@ -1,4 +1,5 @@
 mod codec;
+mod error;
 mod fmt;
 mod ip;
 mod sdp;

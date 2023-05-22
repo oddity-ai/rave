@@ -295,8 +295,6 @@ pub struct H264Depacketizer {
 impl H264Depacketizer {
     // TODO: this holds state like parameter sets as well
 
-    // TODO: docs: in = payload, out = zero or more NALUs
-
     /// Depacketize RTP packets and convert back to raw H264 NAL units that can be passed to a
     /// decoder.
     ///
