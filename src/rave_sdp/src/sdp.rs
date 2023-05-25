@@ -1,10 +1,12 @@
 use crate::codec::{CodecInfo, MediaAttributes};
 use crate::error::{Error, Result};
-use crate::fmt::FMT_RTP_PAYLOAD_DYNAMIC;
-use crate::ip::ip_addr_type;
-use crate::time::unix_epoch_timestamp;
-use crate::timing::TimeRange;
+use crate::format::FMT_RTP_PAYLOAD_DYNAMIC;
+use crate::time_range::TimeRange;
+use crate::time_utils::convert_time_to_unix_epoch;
 
+/// SDP (Session Description Protocol).
+///
+/// Describes a media session. Refer to RFC 8866 for the specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Sdp {
     /* v= */
@@ -26,18 +28,24 @@ pub struct Sdp {
     /* b= */
     pub bandwidth: Vec<Bandwidth>,
     /* t= */
-    pub timing: Vec<Timing>,
+    pub time_active: Vec<TimeActive>,
     /* r= */
-    pub repeat_times: Vec<RepeatTimes>,
-    /* z= */
-    pub timezone_adjustments: Option<TimeZoneAdjustments>,
+    pub repeats: Vec<Repeat>,
     /* a= */
-    pub tags: Vec<Tag>,
+    pub attributes: Vec<Attribute>,
     /* m= */
     pub media: Vec<MediaItem>,
 }
 
 impl Sdp {
+    /// Create new simple media session description.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - Origin of media session.
+    /// * `name` - Name of media.
+    /// * `destination` - Destination of media session.
+    /// * `time_range` - Time range of media session.
     pub fn new(
         origin: std::net::IpAddr,
         name: &str,
@@ -54,14 +62,22 @@ impl Sdp {
             phone: None,
             connection: Some(Connection::from(destination)),
             bandwidth: Vec::new(),
-            timing: vec![Timing::from(time_range)],
-            repeat_times: Vec::new(),
-            timezone_adjustments: None,
-            tags: Vec::new(),
+            time_active: vec![TimeActive::from(time_range)],
+            repeats: Vec::new(),
+            attributes: Vec::new(),
             media: Vec::new(),
         }
     }
 
+    /// Parse media session description from string.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - String to parse from.
+    ///
+    /// # Return value
+    ///
+    /// Instance of [`Sdp`] or error if the provided string does not parse to valid SDP.
     pub fn parse(s: &str) -> Result<Self> {
         let mut version: Option<Version> = None;
         let mut origin: Option<Origin> = None;
@@ -72,10 +88,9 @@ impl Sdp {
         let mut phone: Option<String> = None;
         let mut connection: Option<Connection> = None;
         let mut bandwidth: Vec<Bandwidth> = Vec::new();
-        let mut timing: Vec<Timing> = Vec::new();
-        let mut repeat_times: Vec<RepeatTimes> = Vec::new();
-        let mut timezone_adjustments: Option<TimeZoneAdjustments> = None;
-        let mut tags: Vec<Tag> = Vec::new();
+        let mut time_active: Vec<TimeActive> = Vec::new();
+        let mut repeats: Vec<Repeat> = Vec::new();
+        let mut attributes: Vec<Attribute> = Vec::new();
         let mut media: Vec<MediaItem> = Vec::new();
 
         for line in s.lines() {
@@ -134,23 +149,27 @@ impl Sdp {
                     }
                 }
                 "t=" => {
-                    timing.push(line[2..].parse()?);
+                    time_active.push(line[2..].parse()?);
                 }
                 "r=" => {
-                    repeat_times.push(line[2..].parse()?);
+                    repeats.push(Repeat {
+                        times: line[2..].parse()?,
+                        timezone_adjustments: None,
+                    });
                 }
                 "z=" => {
-                    if repeat_times.is_empty() {
+                    if let Some(repeat_in_scope) = repeats.last_mut() {
+                        repeat_in_scope.timezone_adjustments = Some(line[2..].parse()?);
+                    } else {
                         return Err(Error::TimezoneAdjustmentsWithoutRepeatTimes);
                     }
-                    timezone_adjustments = Some(line[2..].parse()?);
                 }
                 "a=" => {
-                    let tag = line[2..].parse()?;
+                    let attribute = line[2..].parse()?;
                     if let Some(media_item_in_scope) = media.last_mut() {
-                        media_item_in_scope.tags.push(tag);
+                        media_item_in_scope.attributes.push(attribute);
                     } else {
-                        tags.push(tag);
+                        attributes.push(attribute);
                     }
                 }
                 "m=" => {
@@ -159,7 +178,7 @@ impl Sdp {
                         title: None,
                         connection: None,
                         bandwidth: Vec::new(),
-                        tags: Vec::new(),
+                        attributes: Vec::new(),
                     });
                 }
                 _ => {
@@ -173,8 +192,8 @@ impl Sdp {
         let version = version.ok_or(Error::VersionMissing)?;
         let origin = origin.ok_or(Error::OriginMissing)?;
         let session_name = session_name.ok_or(Error::SessionNameMissing)?;
-        if timing.is_empty() {
-            return Err(Error::TimingMissing);
+        if time_active.is_empty() {
+            return Err(Error::TimeActiveMissing);
         }
         if connection.is_none() && !media.iter().all(|media| media.connection.is_some()) {
             return Err(Error::ConnectionMissing);
@@ -190,10 +209,9 @@ impl Sdp {
             phone,
             connection,
             bandwidth,
-            timing,
-            repeat_times,
-            timezone_adjustments,
-            tags,
+            time_active,
+            repeats,
+            attributes,
             media,
         })
     }
@@ -213,16 +231,26 @@ impl Sdp {
         self
     }
 
-    pub fn with_tag(mut self, tag: Tag) -> Self {
-        self.tags.push(tag);
+    pub fn with_attribute(mut self, attribute: Attribute) -> Self {
+        self.attributes.push(attribute);
         self
     }
 
-    pub fn with_tags(mut self, tags: impl IntoIterator<Item = Tag>) -> Self {
-        self.tags.extend(tags);
+    pub fn with_attributes(mut self, attributes: impl IntoIterator<Item = Attribute>) -> Self {
+        self.attributes.extend(attributes);
         self
     }
 
+    /// Add a media entry to the media session.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - Kind of media to add.
+    /// * `title` - Title of media to add.
+    /// * `port` - Communication port on which media is available.
+    /// * `protocol` - Protocol over which media is transmitted.
+    /// * `codec_info` - Coded information of media.
+    /// * `direction` - Direction in which media flows.
     pub fn with_media(
         mut self,
         kind: Kind,
@@ -232,8 +260,8 @@ impl Sdp {
         codec_info: CodecInfo,
         direction: Direction,
     ) -> Self {
-        let mut tags = codec_info.media_attributes();
-        tags.push(Tag::Property(direction.to_string()));
+        let mut attributes = codec_info.media_attributes();
+        attributes.push(Attribute::Property(direction.to_string()));
 
         self.media.push(MediaItem {
             media: Media {
@@ -245,7 +273,7 @@ impl Sdp {
             title: Some(title.to_string()),
             connection: None,
             bandwidth: Vec::new(),
-            tags,
+            attributes,
         });
         self
     }
@@ -274,17 +302,14 @@ impl std::fmt::Display for Sdp {
         for bandwidth in &self.bandwidth {
             writeln!(f, "b={bandwidth}")?;
         }
-        for timing in &self.timing {
-            writeln!(f, "t={timing}")?;
+        for time_active in &self.time_active {
+            writeln!(f, "t={time_active}")?;
         }
-        for repeat_times_item in &self.repeat_times {
-            writeln!(f, "r={repeat_times_item}")?;
+        for repeat in &self.repeats {
+            write!(f, "{repeat}")?;
         }
-        if let Some(timezone_adjustments) = self.timezone_adjustments.as_ref() {
-            writeln!(f, "z={timezone_adjustments}")?;
-        }
-        for tag in &self.tags {
-            writeln!(f, "a={tag}")?;
+        for attribute in &self.attributes {
+            writeln!(f, "a={attribute}")?;
         }
         for media in &self.media {
             write!(f, "{media}")?;
@@ -293,6 +318,7 @@ impl std::fmt::Display for Sdp {
     }
 }
 
+/// SDP version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Version {
     #[default]
@@ -320,6 +346,7 @@ impl std::str::FromStr for Version {
     }
 }
 
+/// The originator of the session. Also includes the session identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Origin {
     pub username: String,
@@ -334,10 +361,12 @@ impl From<std::net::IpAddr> for Origin {
     fn from(ip_addr: std::net::IpAddr) -> Self {
         Self {
             username: "-".to_string(),
-            session_id: unix_epoch_timestamp().to_string(),
+            // Use current UNIX epoch timestamp as session ID. This way we don't have to pull in a
+            // random number generator just to generate a session ID.
+            session_id: convert_time_to_unix_epoch(std::time::SystemTime::now()).to_string(),
             session_version: 0_u64.to_string(),
             network_type: NetworkType::Internet,
-            address_type: ip_addr_type(&ip_addr),
+            address_type: AddressType::of_ip_addr(&ip_addr),
             unicast_address: ip_addr.to_string(),
         }
     }
@@ -384,6 +413,7 @@ impl std::str::FromStr for Origin {
     }
 }
 
+/// Contains information necessary to establish a network connection to carry the media.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Connection {
     pub network_type: NetworkType,
@@ -395,7 +425,7 @@ impl From<std::net::IpAddr> for Connection {
     fn from(ip_addr: std::net::IpAddr) -> Self {
         Connection {
             network_type: NetworkType::Internet,
-            address_type: ip_addr_type(&ip_addr),
+            address_type: AddressType::of_ip_addr(&ip_addr),
             address: ip_addr.to_string(),
         }
     }
@@ -434,6 +464,7 @@ impl std::str::FromStr for Connection {
     }
 }
 
+/// Denotes proposed bandwidth to be used by session or media.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bandwidth {
     ConferenceTotal(usize),
@@ -477,19 +508,20 @@ impl std::str::FromStr for Bandwidth {
     }
 }
 
+/// Denotes start and end time of session or media.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Timing {
+pub struct TimeActive {
     pub start: u64,
     pub stop: u64,
 }
 
-impl std::fmt::Display for Timing {
+impl std::fmt::Display for TimeActive {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} {}", self.start, self.stop)
     }
 }
 
-impl std::str::FromStr for Timing {
+impl std::str::FromStr for TimeActive {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
@@ -498,7 +530,7 @@ impl std::str::FromStr for Timing {
                 time: s.to_string(),
             })
             .and_then(|(start, stop)| {
-                Ok(Timing {
+                Ok(TimeActive {
                     start: start
                         .parse::<u64>()
                         .map_err(|_| Error::TimeDescriptionInvalid {
@@ -514,15 +546,35 @@ impl std::str::FromStr for Timing {
     }
 }
 
-impl From<TimeRange> for Timing {
-    fn from(time_range: TimeRange) -> Timing {
+impl From<TimeRange> for TimeActive {
+    fn from(time_range: TimeRange) -> TimeActive {
         match time_range {
-            TimeRange::Live => Timing { start: 0, stop: 0 },
-            TimeRange::Playback { start, end } => Timing { start, stop: end },
+            TimeRange::Live => TimeActive { start: 0, stop: 0 },
+            TimeRange::Playback { start, end } => TimeActive { start, stop: end },
         }
     }
 }
 
+/// Denotes possible repeatings of the session or media.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Repeat {
+    /* r= */
+    pub times: RepeatTimes,
+    /* z= */
+    pub timezone_adjustments: Option<TimeZoneAdjustments>,
+}
+
+impl std::fmt::Display for Repeat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "r={}", self.times)?;
+        if let Some(timezone_adjustments) = self.timezone_adjustments.as_ref() {
+            writeln!(f, "z={timezone_adjustments}")?;
+        }
+        Ok(())
+    }
+}
+
+/// Denotes times of repeatings of the session or media.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepeatTimes {
     pub repeat_interval: u64,
@@ -575,8 +627,23 @@ impl std::str::FromStr for RepeatTimes {
     }
 }
 
+/// Contains timezone adjustments for repeat times.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimeZoneAdjustments(Vec<TimeZoneAdjustment>);
+
+impl TimeZoneAdjustments {
+    #[inline(always)]
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl Default for TimeZoneAdjustments {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl std::fmt::Display for TimeZoneAdjustments {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -617,6 +684,7 @@ impl std::str::FromStr for TimeZoneAdjustments {
     }
 }
 
+/// Timezone adjustment to be applied to repeat times.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeZoneAdjustment {
     time: u64,
@@ -642,33 +710,40 @@ impl std::fmt::Display for TimeZoneAdjustment {
     }
 }
 
+/// An attribute is used to extend session or media information.
+///
+/// An attribute may be a property, in which case it denotes a binary attribute, or it may be a value
+/// attribute, in which case it consists of a key and a value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Tag {
+pub enum Attribute {
     Property(String),
     Value(String, String),
 }
 
-impl std::fmt::Display for Tag {
+impl std::fmt::Display for Attribute {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Tag::Property(value) => write!(f, "{value}"),
-            Tag::Value(variable, value) => write!(f, "{variable}:{value}"),
+            Attribute::Property(value) => write!(f, "{value}"),
+            Attribute::Value(variable, value) => write!(f, "{variable}:{value}"),
         }
     }
 }
 
-impl std::str::FromStr for Tag {
+impl std::str::FromStr for Attribute {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
         if let Some((variable, value)) = s.split_once(':') {
-            Ok(Tag::Value(variable.to_string(), value.to_string()))
+            Ok(Attribute::Value(variable.to_string(), value.to_string()))
         } else {
-            Ok(Tag::Property(s.to_string()))
+            Ok(Attribute::Property(s.to_string()))
         }
     }
 }
 
+/// Media description.
+///
+/// One session description can contain a number of media descriptions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Media {
     pub kind: Kind,
@@ -719,6 +794,7 @@ impl std::str::FromStr for Media {
     }
 }
 
+/// Media item with media-level attributes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaItem {
     /* m= */
@@ -730,7 +806,7 @@ pub struct MediaItem {
     /* b= */
     pub bandwidth: Vec<Bandwidth>,
     /* a= */
-    pub tags: Vec<Tag>,
+    pub attributes: Vec<Attribute>,
 }
 
 impl std::fmt::Display for MediaItem {
@@ -745,13 +821,14 @@ impl std::fmt::Display for MediaItem {
         for bandwidth in &self.bandwidth {
             writeln!(f, "b={bandwidth}")?;
         }
-        for tag in &self.tags {
-            writeln!(f, "a={tag}")?;
+        for attribute in &self.attributes {
+            writeln!(f, "a={attribute}")?;
         }
         Ok(())
     }
 }
 
+/// Direction of media.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     ReceiveOnly,
@@ -784,6 +861,7 @@ impl std::str::FromStr for Direction {
     }
 }
 
+/// Kind of media.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Video,
@@ -822,10 +900,13 @@ impl std::str::FromStr for Kind {
     }
 }
 
+/// Denotes the transport protocol to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Protocol {
+    /// RTP (RFC 3550) over UDP.
     #[default]
     RtpAvp,
+    /// SRTP (RFC 3711) over UDP.
     RtpSAvp,
 }
 
@@ -852,6 +933,7 @@ impl std::str::FromStr for Protocol {
     }
 }
 
+/// Represents the network type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NetworkType {
     #[default]
@@ -879,10 +961,20 @@ impl std::str::FromStr for NetworkType {
     }
 }
 
+/// Represents the address type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressType {
     IpV4,
     IpV6,
+}
+
+impl AddressType {
+    pub fn of_ip_addr(addr: &std::net::IpAddr) -> Self {
+        match addr {
+            std::net::IpAddr::V4(_) => AddressType::IpV4,
+            std::net::IpAddr::V6(_) => AddressType::IpV6,
+        }
+    }
 }
 
 impl std::fmt::Display for AddressType {

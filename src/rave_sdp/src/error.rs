@@ -1,5 +1,6 @@
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Represent error when parsing or serializing SDP.
 #[derive(Debug)]
 pub enum Error {
     AddressTypeUnknown { address_type: String },
@@ -26,7 +27,7 @@ pub enum Error {
     TimeZoneAdjustmentsLineMalformed { line: String },
     TimezoneAdjustmentsWithoutRepeatTimes,
     TimeZoneAdjustmentTimeInvalid { time: String },
-    TimingMissing,
+    TimeActiveMissing,
     VersionMissing,
     VersionUnknown { version: String },
 }
@@ -103,7 +104,7 @@ impl std::fmt::Display for Error {
             Error::TimeZoneAdjustmentTimeInvalid { time } => {
                 write!(f, "timezone adjustment time not a valid integer: {time}")
             }
-            Error::TimingMissing => write!(f, "timing missing"),
+            Error::TimeActiveMissing => write!(f, "timing missing"),
             Error::VersionMissing => write!(f, "version missing"),
             Error::VersionUnknown { version } => write!(f, "version unknown: {version}"),
         }

@@ -1,11 +1,12 @@
 mod codec;
 mod error;
-mod fmt;
-mod ip;
+mod format;
 mod sdp;
-mod time;
-mod timing;
+mod time_range;
+mod time_utils;
 
 pub use codec::CodecInfo;
-pub use sdp::{AddressType, Direction, Kind, NetworkType, Protocol, Sdp, Tag, Timing, Version};
-pub use timing::TimeRange;
+pub use sdp::{
+    AddressType, Attribute, Direction, Kind, NetworkType, Protocol, Sdp, TimeActive, Version,
+};
+pub use time_range::TimeRange;
