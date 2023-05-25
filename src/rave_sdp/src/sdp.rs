@@ -90,7 +90,6 @@ impl Sdp {
                 });
             }
 
-            // TODO: order
             match &line[0..2] {
                 "v=" => {
                     version = Some(line[2..].parse()?);
@@ -134,14 +133,6 @@ impl Sdp {
                         bandwidth.push(parsed);
                     }
                 }
-                "a=" => {
-                    let tag = line[2..].parse()?;
-                    if let Some(media_item_in_scope) = media.last_mut() {
-                        media_item_in_scope.tags.push(tag);
-                    } else {
-                        tags.push(tag);
-                    }
-                }
                 "t=" => {
                     timing.push(line[2..].parse()?);
                 }
@@ -153,6 +144,14 @@ impl Sdp {
                         return Err(Error::TimezoneAdjustmentsWithoutRepeatTimes);
                     }
                     timezone_adjustments = Some(line[2..].parse()?);
+                }
+                "a=" => {
+                    let tag = line[2..].parse()?;
+                    if let Some(media_item_in_scope) = media.last_mut() {
+                        media_item_in_scope.tags.push(tag);
+                    } else {
+                        tags.push(tag);
+                    }
                 }
                 "m=" => {
                     media.push(MediaItem {

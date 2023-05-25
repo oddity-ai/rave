@@ -13,10 +13,10 @@ pub enum Error {
     PacketSizeExceedsMtu { packet: Packet, mtu: usize },
     H264PacketizationModeUnknown { mode: usize },
     H264PacketizationModeUnsupported { mode: H264PacketizationMode },
-    H264NalDataLengthInvalid { len: usize },
-    H264NalLengthTooSmall { len: usize },
-    H264DepacketizationNalTypeUnknown { nalu_type: u8 },
-    H264DepacketizationNalTypeUnsupported { nalu_type_name: String },
+    H264NalUnitDataLengthInvalid { len: usize },
+    H264NalUnitLengthTooSmall { len: usize },
+    H264DepacketizationNalUnitTypeUnknown { nal_unit_type: u8 },
+    H264DepacketizationNalUnitTypeUnsupported { nal_unit_type_name: String },
     H264AggregationUnitHeaderInvalid { len: usize },
     H264AggregationUnitDataTooSmall { have: usize, need: usize },
     H264FragmentationUnitHeaderInvalid { len: usize },
@@ -56,25 +56,25 @@ impl std::fmt::Display for Error {
             Error::H264PacketizationModeUnsupported { mode } => {
                 write!(f, "h264 packetization mode not supported: {mode})")
             }
-            Error::H264NalDataLengthInvalid { len } => {
-                write!(f, "nal data length invalid (overflow): {len}")
+            Error::H264NalUnitDataLengthInvalid { len } => {
+                write!(f, "nal unit data length invalid (overflow): {len}")
             }
-            Error::H264NalLengthTooSmall { len } => {
+            Error::H264NalUnitLengthTooSmall { len } => {
                 write!(
                     f,
-                    "nal data length too small (must be at least one byte): {len}"
+                    "nal unit data length too small (must be at least one byte): {len}"
                 )
             }
-            Error::H264DepacketizationNalTypeUnknown { nalu_type } => {
+            Error::H264DepacketizationNalUnitTypeUnknown { nal_unit_type } => {
                 write!(
                     f,
-                    "encountered unknown nalu type when depacketizing: {nalu_type}"
+                    "encountered unknown nal unit type when depacketizing: {nal_unit_type}"
                 )
             }
-            Error::H264DepacketizationNalTypeUnsupported { nalu_type_name } => {
+            Error::H264DepacketizationNalUnitTypeUnsupported { nal_unit_type_name } => {
                 write!(
                     f,
-                    "unsupported nalu type (packetization mode not supported): {nalu_type_name}"
+                    "unsupported nal unit type (packetization mode not supported): {nal_unit_type_name}"
                 )
             }
             Error::H264AggregationUnitHeaderInvalid { len } => {

@@ -10,6 +10,7 @@ pub trait Serialize {
 
 impl Serialize for Packet {
     fn serialize(self, dst: &mut BytesMut) -> Result<()> {
+        dst.reserve(self.serialized_len());
         assert!(
             !self.header.padding,
             "header padding bit must be false when serializing packet without padding"
@@ -26,6 +27,7 @@ impl Serialize for Packet {
 
 impl Serialize for PacketPadded {
     fn serialize(self, dst: &mut BytesMut) -> Result<()> {
+        dst.reserve(self.serialized_len());
         assert!(
             self.packet.header.padding,
             "header padding bit must be true when serializing packet with padding",
@@ -50,7 +52,7 @@ impl Serialize for PacketPadded {
 
 impl Serialize for Header {
     fn serialize(self, dst: &mut BytesMut) -> Result<()> {
-        dst.reserve(12 + (self.csrc.len() * 4)); // TODO: count extension
+        dst.reserve(self.serialized_len());
         let version = (self.version.as_number() as u8) << 6;
         let csrc_count: u8 = self
             .csrc

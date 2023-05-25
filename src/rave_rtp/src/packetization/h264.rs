@@ -1,4 +1,3 @@
-// TODO: mixed use of NAL and NALU
 use crate::error::Error;
 use crate::packet::Packet;
 use crate::packetization::common::{PacketizationParameters, Packetizer};
@@ -135,9 +134,16 @@ impl H264Packetize for H264PacketizerMode0 {
     ///
     /// Zero or more RTP packets.
     fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
-        let marker = false; // TODO: ?
+        let num_packets = data.len();
         data.into_iter()
-            .map(|nal| self.inner.packetize(nal, timestamp, marker))
+            .enumerate()
+            .map(|(i, nal_unit)| {
+                // Since the caller must call this function exactly once per access unit, we can
+                // reliably set the marker bit on the last packet.
+                let is_last_packet_in_access_unit = i == num_packets - 1;
+                self.inner
+                    .packetize(nal_unit, timestamp, is_last_packet_in_access_unit)
+            })
             .collect()
     }
 }
@@ -163,7 +169,7 @@ impl H264PacketizerMode1 {
         }
     }
 
-    /// Groups a set of NALs such that packets that as much packets as possible are fit into a
+    /// Groups a set of NAL units such that packets that as much packets as possible are fit into a
     /// single STAP-A without exceeding the MTU.
     ///
     /// # Arguments
@@ -173,24 +179,87 @@ impl H264PacketizerMode1 {
     ///
     /// # Return value
     ///
-    /// Groups of NALs.
-    fn group_data_for_stap_a(&self, data: Vec<Bytes>, mtu: usize) -> Vec<Vec<Bytes>> {
+    /// Groups of NAL units.
+    fn group_nal_units(&self, data: Vec<Bytes>, mtu: usize) -> Vec<Vec<Bytes>> {
         let mut grouped: Vec<Vec<Bytes>> = Vec::new();
-        for nal in data {
+        for nal_unit in data {
             if let Some(current_group) = grouped.last_mut() {
                 let combined_size = self.inner.header_serialized_len()
-                    + current_group.iter().map(|nal| 2 + nal.len()).sum::<usize>();
+                    + current_group
+                        .iter()
+                        .map(|nal_unit| 2 + nal_unit.len())
+                        .sum::<usize>();
                 if combined_size <= mtu {
-                    current_group.push(nal);
+                    current_group.push(nal_unit);
                 } else {
-                    grouped.push(vec![nal]);
+                    grouped.push(vec![nal_unit]);
                 }
             } else {
-                grouped.push(vec![nal]);
+                grouped.push(vec![nal_unit]);
             }
         }
 
         grouped
+    }
+
+    /// Fragment one NAL unit over multiple FU-A NAL units.
+    ///
+    /// # Arguments
+    ///
+    /// * `nal_unit` - NAL unit to fragment.
+    /// * `mtu` - Maximum transmission unit size to satisfy.
+    ///
+    /// # Return value
+    ///
+    /// Fragmented NAL units (FU-A).
+    fn payload_fragmented_unit_a(&self, mut nal_unit: Bytes, mtu: usize) -> Vec<Bytes> {
+        let fu_payload_max_len = mtu - (self.inner.header_serialized_len() + 2);
+        let nal_unit_header = nal_unit.get_u8(); // Strip header.
+        let nal_unit_type = nal_unit_header & 0x1f;
+        let nal_ref_idc = nal_unit_header & 0x60;
+        let chunks = nal_unit.chunks(fu_payload_max_len);
+        let chunks_len = chunks.len();
+        chunks
+            .enumerate()
+            .map(|(i, fu_payload)| {
+                let mut fragmented_nal_unit = BytesMut::with_capacity(2 + fu_payload.len());
+                let fragmented_nal_unit_indicator = 28 & nal_ref_idc;
+                fragmented_nal_unit.put_u8(fragmented_nal_unit_indicator);
+                let mut fragmented_nal_unit_header = nal_unit_type;
+                if i == 0 {
+                    fragmented_nal_unit_header |= 0x80; // Set start bit.
+                }
+                if i == chunks_len - 1 {
+                    fragmented_nal_unit_header |= 0x40; // Set end bit.
+                }
+                fragmented_nal_unit.put_u8(fragmented_nal_unit_header);
+                fragmented_nal_unit.put(fu_payload);
+                fragmented_nal_unit.freeze()
+            })
+            .collect()
+    }
+
+    /// Combine one or more NAL units into single STAP-A NAL unit.
+    ///
+    /// # Arguments
+    ///
+    /// * `nal_units` - NAL units to combine in STAP-A.
+    ///
+    /// # Return value
+    ///
+    /// STAP-A NAL unit.
+    fn payload_stap_a(nal_units: Vec<Bytes>) -> Result<Bytes> {
+        let mut payload = BytesMut::new();
+        for nal_unit in nal_units {
+            payload.put_u16(nal_unit.len().try_into().map_err(|_| {
+                Error::H264NalUnitDataLengthInvalid {
+                    len: nal_unit.len(),
+                }
+            })?);
+            payload.put(nal_unit);
+        }
+
+        Ok(payload.into())
     }
 }
 
@@ -219,22 +288,49 @@ impl H264Packetize for H264PacketizerMode1 {
     fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
         if let Some(mtu) = self.mtu {
             let mut packets: Vec<Packet> = Vec::new();
-            for group in self.group_data_for_stap_a(data, mtu) {
+
+            let groups = self.group_nal_units(data, mtu);
+            let groups_len = groups.len();
+            for (i, group) in groups.into_iter().enumerate() {
+                let is_last_group = i == groups_len - 1;
                 if group.len() == 1 {
-                    let single_nal = group.into_iter().next().unwrap();
-                    if (self.inner.header_serialized_len() + single_nal.len()) <= mtu {
-                        let single_nal_packet = self
-                            .inner
-                            .packetize(single_nal, timestamp, false /* TODO */)?;
-                        packets.push(single_nal_packet);
+                    let single_nal_unit = group.into_iter().next().unwrap();
+                    if (self.inner.header_serialized_len() + single_nal_unit.len()) <= mtu {
+                        let single_nal_unit_packet = self.inner.packetize(
+                            single_nal_unit,
+                            timestamp,
+                            // Last packet (single NAL unit) of access unit -> set marker bit.
+                            is_last_group,
+                        )?;
+                        packets.push(single_nal_unit_packet);
                     } else {
-                        // TODO: fragment!!!!
+                        let fragmented_nal_unit_payloads =
+                            self.payload_fragmented_unit_a(single_nal_unit, mtu);
+                        let num_packets = fragmented_nal_unit_payloads.len();
+                        let fragmented_nal_packets = fragmented_nal_unit_payloads
+                            .into_iter()
+                            .enumerate()
+                            .map(|(j, fragmented_unit_payload)| {
+                                let last_fragmented_unit_of_whole = j == num_packets - 1;
+                                self.inner.packetize(
+                                    fragmented_unit_payload,
+                                    timestamp,
+                                    // Last group in access unit and last fragment out of whole
+                                    // packet means that this is the last RPT packet for this access
+                                    // unit and thus marker bit must be set.
+                                    is_last_group && last_fragmented_unit_of_whole,
+                                )
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+                        packets.extend(fragmented_nal_packets);
                     }
                 } else {
                     let stap_a_packet = self.inner.packetize(
-                        stap_a_payload(group)?,
+                        Self::payload_stap_a(group)?,
                         timestamp,
-                        false, /* TODO */
+                        // Last group of packets contains last packet in access unit, thus marker
+                        // bit must be set.
+                        is_last_group,
                     )?;
                     packets.push(stap_a_packet);
                 }
@@ -242,38 +338,31 @@ impl H264Packetize for H264PacketizerMode1 {
 
             Ok(packets)
         } else {
+            // Since the caller must call `packetize` exactly once for each access unit, the only
+            // packet is also the one that contains the last packet belonging to the access unit and
+            // thus the marker bit is always set.
             let stap_a_packet =
                 self.inner
-                    .packetize(stap_a_payload(data)?, timestamp, false /* TODO? */)?;
+                    .packetize(Self::payload_stap_a(data)?, timestamp, true)?;
             Ok(vec![stap_a_packet])
         }
     }
 }
 
-// TODO
-fn stap_a_payload(nals: Vec<Bytes>) -> Result<Bytes> {
-    let mut payload = BytesMut::new();
-    for nal in nals {
-        payload.put_u16(
-            nal.len()
-                .try_into()
-                .map_err(|_| Error::H264NalDataLengthInvalid { len: nal.len() })?,
-        );
-        payload.put(nal);
-    }
-
-    Ok(payload.into())
-}
-
-// TODO: resequencing here (or maybe somewhere else?)
-
+/// RTP H264 depacketizer.
 #[derive(Debug)]
 pub struct H264Depacketizer {
     fragmented_unit_buffer: Option<BytesMut>,
+    // TODO: resequencing here (actually kind of required for FU-A)
 }
 
 impl H264Depacketizer {
-    /// TODO
+    /// Create a new depacketizer to extract H264 packets from RTP packet stream.
+    ///
+    /// # Packetization mode support
+    ///
+    /// The packetization modes currently supported are "Single NAL Unit mode" and "Non-Interleaved
+    /// Mode".
     pub fn new() -> Self {
         Self {
             fragmented_unit_buffer: None,
@@ -283,8 +372,8 @@ impl H264Depacketizer {
     /// Depacketize RTP packets and convert back to raw H264 NAL units that can be passed to a
     /// decoder.
     ///
-    /// This function will reconstruct fragmented NALUs, as well as split aggregation packets back
-    /// into separate H264 NAL units.
+    /// This function will reconstruct fragmented NAL units, as well as split aggregation packets
+    /// back into separate H264 NAL units.
     ///
     /// # Packetization mode support
     ///
@@ -297,28 +386,28 @@ impl H264Depacketizer {
     ///
     /// # Return value
     ///
-    /// Zero or more depacketized NALs ready for decoding.
+    /// Zero or more depacketized NAL units ready for decoding.
     ///
     /// No NAL units may be produced if the packet contains part of a fragmented unit. More packets
     /// may be produced if the RTP packet payload is an aggregation packet (STAP or MTAP).
     pub fn depacketize(&mut self, packet: &Packet) -> Result<Vec<Bytes>> {
         if packet.payload.len() <= 1 {
-            return Err(Error::H264NalLengthTooSmall {
+            return Err(Error::H264NalUnitLengthTooSmall {
                 len: packet.payload.len(),
             });
         }
 
-        let nalu_type = packet.payload[0] & 0x1f;
-        match nalu_type {
+        let nal_unit_type = packet.payload[0] & 0x1f;
+        match nal_unit_type {
             // NAL
             1..=23 => {
-                // This is just a normal NAL and can be passed on to the decoder as is.
+                // This is just a normal NAL unit and can be passed on to the decoder as is.
                 Ok(vec![packet.payload.clone()])
             }
             // STAP-A
             24 => {
                 let mut payload = packet.payload.clone();
-                payload.advance(1); // Skip NAL type (already peeked in nalu_type).
+                payload.advance(1); // Skip NAL unit type (already peeked in nal_unit_type).
 
                 std::iter::from_fn(|| {
                     if !payload.is_empty() {
@@ -327,14 +416,14 @@ impl H264Depacketizer {
                                 len: payload.remaining(),
                             }));
                         }
-                        let nal_length = payload.get_u16() as usize;
-                        if payload.remaining() < nal_length {
+                        let nal_unit_length = payload.get_u16() as usize;
+                        if payload.remaining() < nal_unit_length {
                             return Some(Err(Error::H264AggregationUnitDataTooSmall {
                                 have: payload.remaining(),
-                                need: nal_length,
+                                need: nal_unit_length,
                             }));
                         }
-                        Some(Ok(payload.copy_to_bytes(nal_length)))
+                        Some(Ok(payload.copy_to_bytes(nal_unit_length)))
                     } else {
                         None
                     }
@@ -344,21 +433,21 @@ impl H264Depacketizer {
             // STAP-B
             25 => {
                 // STAP-B only supported in packetization mode 2 (not supported here).
-                Err(Error::H264DepacketizationNalTypeUnsupported {
-                    nalu_type_name: "STAP-B".to_string(),
+                Err(Error::H264DepacketizationNalUnitTypeUnsupported {
+                    nal_unit_type_name: "STAP-B".to_string(),
                 })
             }
             // MTAP
             26..=27 => {
                 // MTAP only supported in packetization mode 2 (not supported here).
-                Err(Error::H264DepacketizationNalTypeUnsupported {
-                    nalu_type_name: "MTAP".to_string(),
+                Err(Error::H264DepacketizationNalUnitTypeUnsupported {
+                    nal_unit_type_name: "MTAP".to_string(),
                 })
             }
             // FU-A
             28 => {
                 let mut payload = packet.payload.clone();
-                payload.advance(1); // Skip NAL type (already peeked in nalu_type).
+                payload.advance(1); // Skip NAL unit type (already peeked in nal_unit_type).
 
                 if payload.remaining() < 1 {
                     return Err(Error::H264FragmentationUnitHeaderInvalid { len: payload.len() });
@@ -368,7 +457,7 @@ impl H264Depacketizer {
                 let start = (fragmentation_unit_header & 0x80) > 0;
                 let end = (fragmentation_unit_header & 0x40) > 0;
 
-                let recovered_nalu_payload = {
+                let recovered_nal_unit_payload = {
                     if start && !end {
                         if self.fragmented_unit_buffer.is_some() {
                             return Err(Error::H264FragmentedStateAlreadyStarted);
@@ -398,14 +487,14 @@ impl H264Depacketizer {
                     }
                 };
 
-                if let Some(recovered_nalu_payload) = recovered_nalu_payload {
-                    let nal_ref_idc = nalu_type & 0x60; // Copy original ref idc.
-                    let nalu_type = fragmentation_unit_header & 0x1f;
-                    let nalu_type = nalu_type | nal_ref_idc; // Recover original NALU type.
-                    let mut nalu = BytesMut::new();
-                    nalu.put_u8(nalu_type);
-                    nalu.put(recovered_nalu_payload);
-                    Ok(vec![nalu.freeze()])
+                if let Some(recovered_nal_unit_payload) = recovered_nal_unit_payload {
+                    let nal_ref_idc = nal_unit_type & 0x60; // Copy original ref idc.
+                    let nal_unit_type = fragmentation_unit_header & 0x1f;
+                    let nal_unit_type = nal_unit_type | nal_ref_idc; // Recover original NALU type.
+                    let mut nal_unit = BytesMut::new();
+                    nal_unit.put_u8(nal_unit_type);
+                    nal_unit.put(recovered_nal_unit_payload);
+                    Ok(vec![nal_unit.freeze()])
                 } else {
                     Ok(Vec::new())
                 }
@@ -413,8 +502,8 @@ impl H264Depacketizer {
             // FU-B
             29 => {
                 // FU-B only supported in packetization mode 2 (not supported here).
-                Err(Error::H264DepacketizationNalTypeUnsupported {
-                    nalu_type_name: "FU-B".to_string(),
+                Err(Error::H264DepacketizationNalUnitTypeUnsupported {
+                    nal_unit_type_name: "FU-B".to_string(),
                 })
             }
             // reserved
@@ -422,7 +511,7 @@ impl H264Depacketizer {
                 // RFC dictates that these must be ignored.
                 Ok(Vec::new())
             }
-            _ => Err(Error::H264DepacketizationNalTypeUnknown { nalu_type }),
+            _ => Err(Error::H264DepacketizationNalUnitTypeUnknown { nal_unit_type }),
         }
     }
 }
