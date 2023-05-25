@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::packet::Packet;
 use crate::packetization::common::{PacketizationParameters, Packetizer};
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -12,17 +12,17 @@ pub struct H264Packetizer {
 }
 
 impl H264Packetizer {
-    /// Create a new packetizer to create RTP packets with H264 encoded pictures.
-    /// TODO: section move to below
-    /// # Arguments
-    ///
-    /// * `mode` - Packetizer mode to use.
-    /// * `params` - RTP Packetization parameters to use for constructing packets.
+    /// Create a new packetizer to create RTP packets from H264 encoded packets.
     ///
     /// # Packetization mode support
     ///
     /// The packetization modes currently supported are "Single NAL Unit mode" and "Non-Interleaved
     /// Mode".
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - Packetizer mode to use.
+    /// * `params` - RTP Packetization parameters to use for constructing packets.
     pub fn from_packetization_mode(
         mode: H264PacketizationMode,
         params: PacketizationParameters,
@@ -40,7 +40,7 @@ impl H264Packetizer {
         })
     }
 
-    /// Packetize one or more H264 NAL units.
+    /// Packetize one or more H264 encoded packets.
     ///
     /// Refer to [`H264Packetize::packetize()`].
     ///
@@ -51,26 +51,26 @@ impl H264Packetizer {
     ///
     /// # Fragmentation
     ///
-    /// If the packetizer is in Single NAL Unit mode, any data that exceed the MTU will produce an
-    /// error. If the packetizer is in Non-Interleaved Mode, any data that exceed the MTU will be
+    /// If the packetizer is in single NAL unit mode, any data that exceed the MTU will produce an
+    /// error. If the packetizer is in non-interleaved Mode, any data that exceed the MTU will be
     /// fragmented over multiple packets.
     ///
     /// # Arguments
     ///
-    /// * `data` - Data containing one or more H264 packets (serialzied NAL units).
+    /// * `data` - One or more H264 packets.
     /// * `timestamp` - Presentation timestamp of NAL units.
     ///
     /// # Return value
     ///
-    /// Zero or more packets.
+    /// Zero or more RTP packets.
     #[inline]
-    pub fn packetize(&mut self, data: Bytes, timestamp: u32) -> Result<Vec<Packet>> {
+    pub fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
         self.inner.packetize(data, timestamp)
     }
 }
 
 pub trait H264Packetize {
-    /// Packetize one or more H264 NAL units.
+    /// Packetize one or more H264 encoded packets.
     ///
     /// # Access unit
     ///
@@ -79,26 +79,26 @@ pub trait H264Packetize {
     ///
     /// # Arguments
     ///
-    /// * `data` - Data containing one or more H264 packets (serialzied NAL units).
+    /// * `data` - One or more H264 packets.
     /// * `timestamp` - Presentation timestamp of NAL units.
     ///
     /// # Return value
     ///
-    /// Zero or more packets.
+    /// Zero or more RTP packets.
     ///
     /// No packets may be returned even if valid data was passed. More than one packet may be
     /// produced if the data is fragmented over multiple packets to fit within the configured MTU.
-    fn packetize(&mut self, data: Bytes, timestamp: u32) -> Result<Vec<Packet>>;
+    fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>>;
 }
 
-/// Single NAL Unit Mode H264 packetizer.
+/// Single NAL unit mode H264 packetizer.
 #[derive(Debug)]
 pub struct H264PacketizerMode0 {
     inner: Packetizer,
 }
 
 impl H264PacketizerMode0 {
-    /// Create new H264 packetizer that packetizes in Single NAL Unit mode.
+    /// Create new H264 packetizer that packetizes in single NAL unit mode.
     ///
     /// # Arguments
     ///
@@ -111,7 +111,7 @@ impl H264PacketizerMode0 {
 }
 
 impl H264Packetize for H264PacketizerMode0 {
-    /// Packetize one or more H264 NAL units in Single NAL Unit mode.
+    /// Packetize one or more H264 encoded packets in single NAL unit mode.
     ///
     /// Refer to [`H264Packetize::packetize()`].
     ///
@@ -122,21 +122,20 @@ impl H264Packetize for H264PacketizerMode0 {
     ///
     /// # MTU
     ///
-    /// Since Single NAL Unit mode does not support fragmented MTUs, any packets that exceed the MTU
+    /// Since single NAL unit mode does not support fragmented MTUs. Any packets that exceed the MTU
     /// (if specified) will produce an error.
     ///
     /// # Arguments
     ///
-    /// * `data` - Data containing one or more H264 packets (serialzied NAL units).
+    /// * `data` - One or more H264 packets.
     /// * `timestamp` - Presentation timestamp of NAL units.
     ///
     /// # Return value
     ///
-    /// Zero or more packets.
-    fn packetize(&mut self, data: Bytes, timestamp: u32) -> Result<Vec<Packet>> {
+    /// Zero or more RTP packets.
+    fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
         let marker = false; // TODO: ?
-        split_nals(data)?
-            .into_iter()
+        data.into_iter()
             .map(|nal| self.inner.packetize(nal, timestamp, marker))
             .collect()
     }
@@ -146,26 +145,56 @@ impl H264Packetize for H264PacketizerMode0 {
 #[derive(Debug)]
 pub struct H264PacketizerMode1 {
     inner: Packetizer,
-    mtu: Option<usize>, // TODO: fragment if payload higher than MTU
+    mtu: Option<usize>,
 }
 
 impl H264PacketizerMode1 {
-    /// Create new H264 packetizer that packetizes in Non-Interleaved mode.
+    /// Create new H264 packetizer that packetizes in non-interleaved mode.
     ///
     /// # Arguments
     ///
     /// * `params` - Common RTP packetization parameters to use.
     pub fn new(params: PacketizationParameters) -> Self {
-        let mtu = params.mtu.clone();
+        let mtu = params.mtu;
         Self {
             inner: Packetizer::from_packetization_parameters(params),
             mtu,
         }
     }
+
+    /// Groups a set of NALs such that packets that as much packets as possible are fit into a
+    /// single STAP-A without exceeding the MTU.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - One ore more H264 packets to group.
+    /// * `mtu` - Maximum transmission unit size.
+    ///
+    /// # Return value
+    ///
+    /// Groups of NALs.
+    fn group_data_for_stap_a(&self, data: Vec<Bytes>, mtu: usize) -> Vec<Vec<Bytes>> {
+        let mut grouped: Vec<Vec<Bytes>> = Vec::new();
+        for nal in data {
+            if let Some(current_group) = grouped.last_mut() {
+                let combined_size = self.inner.header_serialized_len()
+                    + current_group.iter().map(|nal| 2 + nal.len()).sum::<usize>();
+                if combined_size <= mtu {
+                    current_group.push(nal);
+                } else {
+                    grouped.push(vec![nal]);
+                }
+            } else {
+                grouped.push(vec![nal]);
+            }
+        }
+
+        grouped
+    }
 }
 
 impl H264Packetize for H264PacketizerMode1 {
-    /// Packetize one or more H264 NAL units in Non-Interleaved Mode.
+    /// Packetize one or more H264 encoded packets in non-interleaved mode.
     ///
     /// Refer to [`H264Packetize::packetize()`].
     ///
@@ -180,38 +209,18 @@ impl H264Packetize for H264PacketizerMode1 {
     ///
     /// # Arguments
     ///
-    /// * `data` - Data containing one or more H264 packets (serialzied NAL units).
+    /// * `data` - One or more H264 packets.
     /// * `timestamp` - Presentation timestamp of NAL units.
     ///
     /// # Return value
     ///
     /// Zero or more packets.
-    fn packetize(&mut self, data: Bytes, timestamp: u32) -> Result<Vec<Packet>> {
-        let nals = split_nals(data)?;
-
+    fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
         if let Some(mtu) = self.mtu {
-            let mut buckets: Vec<Vec<Bytes>> = Vec::new();
-            for nal in nals {
-                if let Some(current_bucket) = buckets.last_mut() {
-                    let combined_size = self.inner.header_serialized_len()
-                        + current_bucket
-                            .iter()
-                            .map(|nal| 2 + nal.len())
-                            .sum::<usize>();
-                    if combined_size <= mtu {
-                        current_bucket.push(nal);
-                    } else {
-                        buckets.push(vec![nal]);
-                    }
-                } else {
-                    buckets.push(vec![nal]);
-                }
-            }
-
             let mut packets: Vec<Packet> = Vec::new();
-            for bucket in buckets {
-                if bucket.len() == 1 {
-                    let single_nal = bucket.into_iter().next().unwrap();
+            for group in self.group_data_for_stap_a(data, mtu) {
+                if group.len() == 1 {
+                    let single_nal = group.into_iter().next().unwrap();
                     if (self.inner.header_serialized_len() + single_nal.len()) <= mtu {
                         let single_nal_packet = self
                             .inner
@@ -222,7 +231,7 @@ impl H264Packetize for H264PacketizerMode1 {
                     }
                 } else {
                     let stap_a_packet = self.inner.packetize(
-                        stap_a_payload(bucket)?,
+                        stap_a_payload(group)?,
                         timestamp,
                         false, /* TODO */
                     )?;
@@ -234,7 +243,7 @@ impl H264Packetize for H264PacketizerMode1 {
         } else {
             let stap_a_packet =
                 self.inner
-                    .packetize(stap_a_payload(nals)?, timestamp, false /* TODO? */)?;
+                    .packetize(stap_a_payload(data)?, timestamp, false /* TODO? */)?;
             Ok(vec![stap_a_packet])
         }
     }
@@ -255,38 +264,6 @@ fn stap_a_payload(nals: Vec<Bytes>) -> Result<Bytes> {
     Ok(payload.into())
 }
 
-/// Split raw data into NALs.
-///
-/// # Return value
-///
-/// [`Vec`] of bytes for each NAL, or an error if the passed data does not start with a valid NAL
-/// unit.
-fn split_nals(mut data: Bytes) -> Result<Vec<Bytes>> {
-    const NAL_HEADER_1: [u8; 3] = [0x00, 0x00, 0x01];
-    const NAL_HEADER_2: [u8; 4] = [0x00, 0x00, 0x00, 0x01];
-
-    let offset = if data.len() >= 3 && data[0..3] == NAL_HEADER_1 {
-        3
-    } else if data.len() >= 4 && data[0..4] == NAL_HEADER_2 {
-        4
-    } else {
-        return Err(Error::H264InvalidNalHeader);
-    };
-
-    let mut nals = Vec::new();
-    for i in offset..data.len() {
-        if ((data.len() - i) >= 3 && data[i..i + 3] == NAL_HEADER_1)
-            || ((data.len() - 1) >= 4 && data[i..i + 4] == NAL_HEADER_2)
-        {
-            nals.push(data.split_to(i));
-        }
-    }
-
-    nals.push(data);
-
-    Ok(nals)
-}
-
 // TODO: resequencing here (or maybe somewhere else?)
 
 #[derive(Debug)]
@@ -295,38 +272,139 @@ pub struct H264Depacketizer {
 }
 
 impl H264Depacketizer {
-    // TODO: this holds state like parameter sets as well
-
     /// Depacketize RTP packets and convert back to raw H264 NAL units that can be passed to a
     /// decoder.
     ///
     /// This function will reconstruct fragmented NALUs, as well as split aggregation packets back
     /// into separate H264 NAL units.
     ///
+    /// # Packetization mode support
+    ///
+    /// The packetization modes currently supported are "Single NAL Unit mode" and "Non-Interleaved
+    /// Mode".
+    ///
     /// # Arguments
     ///
-    /// * `packet` - RTP Packet to depacketize.
+    /// * `packet` - RTP packet to depacketize.
     ///
     /// # Return value
     ///
-    /// Zero or more H264 packets ready for decoding.
+    /// Zero or more depacketized NALs ready for decoding.
     ///
     /// No NAL units may be produced if the packet contains part of a fragmented unit. More packets
     /// may be produced if the RTP packet payload is an aggregation packet (STAP or MTAP).
-    pub fn depacketize(&mut self, packet: &Packet) -> Vec<Bytes> {
-        todo!()
+    pub fn depacketize(&mut self, packet: &Packet) -> Result<Vec<Bytes>> {
+        if packet.payload.len() <= 1 {
+            return Err(Error::H264NalLengthTooSmall {
+                len: packet.payload.len(),
+                minimum: 1,
+            });
+        }
+
+        let nalu_type = packet.payload[0] & 0x1f;
+        match nalu_type {
+            // NAL
+            1..=23 => {
+                // This is just a normal NAL and can be passed on to the decoder as is.
+                Ok(vec![packet.payload.clone()])
+            }
+            // STAP-A
+            24 => {
+                let mut payload = packet.payload.clone();
+                std::iter::from_fn(|| {
+                    if !payload.is_empty() {
+                        if payload.remaining() < 2 {
+                            return Some(Err(Error::H264AggregationUnitHeaderInvalid {
+                                len: payload.remaining(),
+                            }));
+                        }
+                        let nal_length = payload.get_u16() as usize;
+                        if payload.remaining() < nal_length {
+                            return Some(Err(Error::H264AggregationUnitDataTooSmall {
+                                have: payload.remaining(),
+                                need: nal_length,
+                            }));
+                        }
+                        Some(Ok(payload.copy_to_bytes(nal_length)))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+            }
+            // STAP-B
+            25 => {
+                // STAP-B only supported in packetization mode 2 (not supported here).
+                Err(Error::H264DepacketizationNalTypeUnsupported {
+                    nalu_type_name: "STAP-B".to_string(),
+                })
+            }
+            // MTAP
+            26..=27 => {
+                // MTAP only supported in packetization mode 2 (not supported here).
+                Err(Error::H264DepacketizationNalTypeUnsupported {
+                    nalu_type_name: "MTAP".to_string(),
+                })
+            }
+            // FU-A
+            28 => {
+                todo!()
+            }
+            // FU-B
+            29 => {
+                // FU-B only supported in packetization mode 2 (not supported here).
+                Err(Error::H264DepacketizationNalTypeUnsupported {
+                    nalu_type_name: "FU-B".to_string(),
+                })
+            }
+            // reserved
+            30..=31 => {
+                // RFC dictates that these must be ignored.
+                Ok(Vec::new())
+            }
+            _ => Err(Error::H264DepacketizationNalTypeUnknown { nalu_type }),
+        }
     }
 }
 
+/// H264 packetization mode.
+///
+/// The following table (from RFC 6184) specifies which payload types are supported per
+/// packetization mode:
+///
+/// ```text
+/// Payload Packet    Single NAL    Non-Interleaved    Interleaved
+/// Type    Type      Unit Mode           Mode             Mode
+/// -------------------------------------------------------------
+/// 0      reserved      ig               ig               ig
+/// 1-23   NAL unit     yes              yes               no
+/// 24     STAP-A        no              yes               no
+/// 25     STAP-B        no               no              yes
+/// 26     MTAP16        no               no              yes
+/// 27     MTAP24        no               no              yes
+/// 28     FU-A          no              yes              yes
+/// 29     FU-B          no               no              yes
+/// 30-31  reserved      ig               ig               ig
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum H264PacketizationMode {
+    /// Single NAL unit mode.
+    ///
+    /// Targeted for conversational systems.
     SingleNalUnit,
+    /// Non-interleaved mode.
+    ///
+    /// NAL units are transmitted in NAL unit decoding order. Targeted for systems that do not
+    /// require very low end-to-end latency.
     NonInterleavedMode,
+    /// Interleaved mode.
+    ///
+    /// Allows transmission of NAL units out of NAL unit decoding order.
     InterleavedMode,
 }
 
 impl TryFrom<usize> for H264PacketizationMode {
-    type Error = Error; // TODO: dummy
+    type Error = Error;
 
     fn try_from(mode: usize) -> Result<Self> {
         match mode {
