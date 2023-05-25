@@ -14,11 +14,14 @@ pub enum Error {
     H264PacketizationModeUnknown { mode: usize },
     H264PacketizationModeUnsupported { mode: H264PacketizationMode },
     H264NalDataLengthInvalid { len: usize },
-    H264NalLengthTooSmall { len: usize, minimum: usize },
+    H264NalLengthTooSmall { len: usize },
     H264DepacketizationNalTypeUnknown { nalu_type: u8 },
     H264DepacketizationNalTypeUnsupported { nalu_type_name: String },
     H264AggregationUnitHeaderInvalid { len: usize },
     H264AggregationUnitDataTooSmall { have: usize, need: usize },
+    H264FragmentationUnitHeaderInvalid { len: usize },
+    H264FragmentedStateAlreadyStarted,
+    H264FragmentedStateNeverStarted,
 }
 
 impl std::fmt::Display for Error {
@@ -56,10 +59,10 @@ impl std::fmt::Display for Error {
             Error::H264NalDataLengthInvalid { len } => {
                 write!(f, "nal data length invalid (overflow): {len}")
             }
-            Error::H264NalLengthTooSmall { len, minimum } => {
+            Error::H264NalLengthTooSmall { len } => {
                 write!(
                     f,
-                    "nal data length too small: {len} (must be at least {minimum})"
+                    "nal data length too small (must be at least one byte): {len}"
                 )
             }
             Error::H264DepacketizationNalTypeUnknown { nalu_type } => {
@@ -85,6 +88,22 @@ impl std::fmt::Display for Error {
                     f,
                     "aggregation unit payload too small: {have} (need {need})"
                 )
+            }
+            Error::H264FragmentationUnitHeaderInvalid { len } => {
+                write!(
+                    f,
+                    "fragmentation unit header too small (need 1 byte): {len}"
+                )
+            }
+            Error::H264FragmentedStateAlreadyStarted => {
+                write!(
+                    f,
+                    "received fragmented unit with start bit set \
+                        but never finished previous fragmented unit"
+                )
+            }
+            Error::H264FragmentedStateNeverStarted => {
+                write!(f, "received unexpected fragmented unit")
             }
         }
     }

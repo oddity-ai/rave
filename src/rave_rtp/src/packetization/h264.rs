@@ -1,3 +1,4 @@
+// TODO: mixed use of NAL and NALU
 use crate::error::Error;
 use crate::packet::Packet;
 use crate::packetization::common::{PacketizationParameters, Packetizer};
@@ -268,10 +269,17 @@ fn stap_a_payload(nals: Vec<Bytes>) -> Result<Bytes> {
 
 #[derive(Debug)]
 pub struct H264Depacketizer {
-    // TODO
+    fragmented_unit_buffer: Option<BytesMut>,
 }
 
 impl H264Depacketizer {
+    /// TODO
+    pub fn new() -> Self {
+        Self {
+            fragmented_unit_buffer: None,
+        }
+    }
+
     /// Depacketize RTP packets and convert back to raw H264 NAL units that can be passed to a
     /// decoder.
     ///
@@ -297,7 +305,6 @@ impl H264Depacketizer {
         if packet.payload.len() <= 1 {
             return Err(Error::H264NalLengthTooSmall {
                 len: packet.payload.len(),
-                minimum: 1,
             });
         }
 
@@ -311,6 +318,8 @@ impl H264Depacketizer {
             // STAP-A
             24 => {
                 let mut payload = packet.payload.clone();
+                payload.advance(1); // Skip NAL type (already peeked in nalu_type).
+
                 std::iter::from_fn(|| {
                     if !payload.is_empty() {
                         if payload.remaining() < 2 {
@@ -348,7 +357,58 @@ impl H264Depacketizer {
             }
             // FU-A
             28 => {
-                todo!()
+                let mut payload = packet.payload.clone();
+                payload.advance(1); // Skip NAL type (already peeked in nalu_type).
+
+                if payload.remaining() < 1 {
+                    return Err(Error::H264FragmentationUnitHeaderInvalid { len: payload.len() });
+                }
+
+                let fragmentation_unit_header = payload.get_u8();
+                let start = (fragmentation_unit_header & 0x80) > 0;
+                let end = (fragmentation_unit_header & 0x40) > 0;
+
+                let recovered_nalu_payload = {
+                    if start && !end {
+                        if self.fragmented_unit_buffer.is_some() {
+                            return Err(Error::H264FragmentedStateAlreadyStarted);
+                        }
+                        let mut fragmented_unit_buffer = BytesMut::new();
+                        fragmented_unit_buffer.put(payload);
+                        self.fragmented_unit_buffer = Some(fragmented_unit_buffer);
+                        None
+                    } else if !start && !end {
+                        if let Some(fragmented_unit_buffer) = self.fragmented_unit_buffer.as_mut() {
+                            fragmented_unit_buffer.put(payload);
+                        } else {
+                            return Err(Error::H264FragmentedStateNeverStarted);
+                        }
+                        None
+                    } else if !start && end {
+                        if let Some(mut fragmented_unit_buffer) = self.fragmented_unit_buffer.take()
+                        {
+                            fragmented_unit_buffer.put(payload);
+                            Some(fragmented_unit_buffer.freeze())
+                        } else {
+                            return Err(Error::H264FragmentedStateNeverStarted);
+                        }
+                    } else {
+                        // FU-A with start AND end bit set is just one unit (maybe it is illegal).
+                        Some(payload)
+                    }
+                };
+
+                if let Some(recovered_nalu_payload) = recovered_nalu_payload {
+                    let nal_ref_idc = nalu_type & 0x60; // Copy original ref idc.
+                    let nalu_type = fragmentation_unit_header & 0x1f;
+                    let nalu_type = nalu_type | nal_ref_idc; // Recover original NALU type.
+                    let mut nalu = BytesMut::new();
+                    nalu.put_u8(nalu_type);
+                    nalu.put(recovered_nalu_payload);
+                    Ok(vec![nalu.freeze()])
+                } else {
+                    Ok(Vec::new())
+                }
             }
             // FU-B
             29 => {
