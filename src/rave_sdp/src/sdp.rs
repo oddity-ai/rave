@@ -1,4 +1,4 @@
-use crate::codec::{CodecInfo, MediaAttributes};
+use crate::codec::Parameters as CodecParameters;
 use crate::error::{Error, Result};
 use crate::format::FMT_RTP_PAYLOAD_DYNAMIC;
 use crate::time_range::TimeRange;
@@ -249,18 +249,18 @@ impl Sdp {
     /// * `title` - Title of media to add.
     /// * `port` - Communication port on which media is available.
     /// * `protocol` - Protocol over which media is transmitted.
-    /// * `codec_info` - Coded information of media.
     /// * `direction` - Direction in which media flows.
+    /// * `codec_parameters` - Codec-specific parameters.
     pub fn with_media(
         mut self,
         kind: Kind,
         title: &str,
         port: u16,
         protocol: Protocol,
-        codec_info: CodecInfo,
         direction: Direction,
+        codec_parameters: impl CodecParameters,
     ) -> Self {
-        let mut attributes = codec_info.media_attributes();
+        let mut attributes = codec_parameters.media_attributes();
         attributes.push(Attribute::Property(direction.to_string()));
 
         self.media.push(MediaItem {
