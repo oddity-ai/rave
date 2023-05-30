@@ -324,6 +324,8 @@ pub struct Connection {
     pub network_type: NetworkType,
     pub address_type: AddressType,
     pub address: String,
+    pub address_ttl: Option<u8>,
+    pub address_multicast: Option<u8>,
 }
 
 impl From<std::net::IpAddr> for Connection {
@@ -332,6 +334,8 @@ impl From<std::net::IpAddr> for Connection {
             network_type: NetworkType::Internet,
             address_type: AddressType::of_ip_addr(&ip_addr),
             address: ip_addr.to_string(),
+            address_ttl: None,
+            address_multicast: None,
         }
     }
 }
@@ -340,8 +344,20 @@ impl std::fmt::Display for Connection {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(
             f,
-            "{} {} {}",
-            self.network_type, self.address_type, self.address,
+            "{} {} {}{}{}",
+            self.network_type,
+            self.address_type,
+            self.address,
+            if let Some(address_ttl) = self.address_ttl {
+                format!("/{address_ttl}")
+            } else {
+                "".to_string()
+            },
+            if let Some(address_multicast) = self.address_multicast {
+                format!("/{address_multicast}")
+            } else {
+                "".to_string()
+            }
         )
     }
 }
@@ -359,12 +375,39 @@ impl std::str::FromStr for Connection {
                 line: line.to_string(),
             })
         }
-
         let mut parts = s.split(' ');
+        let network_type = next_or_invalid(s, &mut parts)?.parse()?;
+        let address_type = next_or_invalid(s, &mut parts)?.parse()?;
+        let mut address_parts = next_or_invalid(s, &mut parts)?.split('/');
+        let address = address_parts.next().unwrap().to_string();
+        let address_ttl = if let Some(ttl) = address_parts.next() {
+            Some(
+                ttl.parse()
+                    .map_err(|_| Error::ConnectionAddressTtlInvalid {
+                        ttl: ttl.to_string(),
+                    })?,
+            )
+        } else {
+            None
+        };
+        let address_multicast = if let Some(multicast) = address_parts.next() {
+            Some(
+                multicast
+                    .parse()
+                    .map_err(|_| Error::ConnectionAddressMulticastInvalid {
+                        multicast: multicast.to_string(),
+                    })?,
+            )
+        } else {
+            None
+        };
+
         Ok(Connection {
-            network_type: next_or_invalid(s, &mut parts)?.parse()?,
-            address_type: next_or_invalid(s, &mut parts)?.parse()?,
-            address: next_or_invalid(s, &mut parts)?.to_string(),
+            network_type,
+            address_type,
+            address,
+            address_ttl,
+            address_multicast,
         })
     }
 }
@@ -654,7 +697,7 @@ pub struct Media {
     pub kind: Kind,
     pub port: u16,
     pub protocol: Protocol,
-    pub format: usize,
+    pub format: u8,
 }
 
 impl std::fmt::Display for Media {

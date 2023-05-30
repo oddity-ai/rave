@@ -1,7 +1,6 @@
 mod builder;
 mod codec;
 mod error;
-mod format;
 mod reader;
 mod sdp;
 mod time_range;

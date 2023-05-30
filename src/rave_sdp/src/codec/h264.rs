@@ -1,7 +1,6 @@
 use base64::Engine;
 
 use crate::codec::Parameters as ParametersTrait;
-use crate::format::FMT_RTP_PAYLOAD_DYNAMIC;
 use crate::sdp::Attribute;
 
 // TODO: parse codec info from media attributes.
@@ -34,21 +33,6 @@ impl<'params> Parameters<'params> {
         }
     }
 
-    /// Generate `rtpmap` attribute.
-    ///
-    /// This will generate an RTP map that maps H264 to the dynamic payload identifier 96.
-    ///
-    /// # Return value
-    ///
-    /// `rtpmap` attribute for SDP.
-    #[inline]
-    fn rtpmap_attribute() -> Attribute {
-        Attribute::Value(
-            "rtpmap".to_string(),
-            format!("{FMT_RTP_PAYLOAD_DYNAMIC} H264/90000"),
-        )
-    }
-
     /// Generate `fmtp` attribute with H264 stream metadata.
     ///
     /// This will generate a `fmtp` attribute that contains the packetization mode, profile level
@@ -58,7 +42,7 @@ impl<'params> Parameters<'params> {
     /// # Return value
     ///
     /// `fmtp` attribute for SDP.
-    fn fmtp_attribute(&self) -> Attribute {
+    fn fmtp_attribute(&self, payload_type: u8) -> Attribute {
         let profile_level_id_bytes = &self.sps[1..4];
         let profile_level_id = profile_level_id_bytes
             .iter()
@@ -75,12 +59,21 @@ impl<'params> Parameters<'params> {
             "fmtp".to_string(),
             format!(
                 "{} packetization-mode={}; profile-level-id={}; sprop-parameter-sets={}",
-                FMT_RTP_PAYLOAD_DYNAMIC,
-                self.packetization_mode,
-                profile_level_id,
-                sprop_parameter_sets,
+                payload_type, self.packetization_mode, profile_level_id, sprop_parameter_sets,
             ),
         )
+    }
+
+    /// Generate `rtpmap` attribute.
+    ///
+    /// This will generate an RTP map that maps H264 to the dynamic payload identifier 96.
+    ///
+    /// # Return value
+    ///
+    /// `rtpmap` attribute for SDP.
+    #[inline]
+    fn rtpmap_attribute(payload_type: u8) -> Attribute {
+        Attribute::Value("rtpmap".to_string(), format!("{payload_type} H264/90000"))
     }
 }
 
@@ -90,11 +83,18 @@ impl ParametersTrait for Parameters<'_> {
     /// These attributes are added to the media item to signal media information to the receiver of
     /// the SDP file.
     ///
+    /// # Arguments
+    ///
+    /// * `dynamic_payload_type` - Dynamic payload type to associate with media item.
+    ///
     /// # Return value
     ///
     /// One or more media attributes.
-    fn media_attributes(&self) -> Vec<Attribute> {
-        vec![Self::rtpmap_attribute(), self.fmtp_attribute()]
+    fn media_attributes(&self, dynamic_payload_type: u8) -> Vec<Attribute> {
+        vec![
+            Self::rtpmap_attribute(dynamic_payload_type),
+            self.fmtp_attribute(dynamic_payload_type),
+        ]
     }
 }
 

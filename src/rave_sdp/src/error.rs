@@ -7,6 +7,8 @@ pub enum Error {
     BandwidthLineMalformed { line: String },
     BandwidthTypeUnknown { bandwidth_type: String },
     BandwidthValueInvalid { bandwidth: String },
+    ConnectionAddressTtlInvalid { ttl: String },
+    ConnectionAddressMulticastInvalid { multicast: String },
     ConnectionLineInvalid { line: String },
     ConnectionMissing,
     DirectionUnknown { direction: String },
@@ -18,6 +20,7 @@ pub enum Error {
     NetworkTypeUnknown { network_type: String },
     OriginLineInvalid { line: String },
     OriginMissing,
+    OriginUnicastAddressInvalid { unicast_address: String },
     ProtocolUnknown { protocol: String },
     RepeatTimesLineMalformed { line: String },
     SessionNameMissing,
@@ -28,6 +31,7 @@ pub enum Error {
     TimezoneAdjustmentsWithoutRepeatTimes,
     TimeZoneAdjustmentTimeInvalid { time: String },
     TimeActiveMissing,
+    TooManyMediaItems,
     VersionMissing,
     VersionUnknown { version: String },
 }
@@ -50,6 +54,15 @@ impl std::fmt::Display for Error {
             }
             Error::ConnectionLineInvalid { line } => {
                 write!(f, "connection line is invalid: {line}")
+            }
+            Error::ConnectionAddressTtlInvalid { ttl } => {
+                write!(f, "connection address ttl invalid: {ttl}")
+            }
+            Error::ConnectionAddressMulticastInvalid { multicast } => {
+                write!(
+                    f,
+                    "connection address multicast number invalid: {multicast}"
+                )
             }
             Error::ConnectionMissing => write!(
                 f,
@@ -82,6 +95,12 @@ impl std::fmt::Display for Error {
                 write!(f, "origin line is invalid: {line}")
             }
             Error::OriginMissing => write!(f, "origin missing"),
+            Error::OriginUnicastAddressInvalid { unicast_address } => {
+                write!(
+                    f,
+                    "origin specifies invalid unicast address: {unicast_address}"
+                )
+            }
             Error::ProtocolUnknown { protocol } => write!(f, "protocol unknown: {protocol}"),
             Error::RepeatTimesLineMalformed { line } => {
                 write!(f, "repeat times line malformed: {line}")
@@ -105,6 +124,10 @@ impl std::fmt::Display for Error {
                 write!(f, "timezone adjustment time not a valid integer: {time}")
             }
             Error::TimeActiveMissing => write!(f, "timing missing"),
+            Error::TooManyMediaItems => write!(
+                f,
+                "too many media items (ran out of dynamic payload assignments)"
+            ),
             Error::VersionMissing => write!(f, "version missing"),
             Error::VersionUnknown { version } => write!(f, "version unknown: {version}"),
         }

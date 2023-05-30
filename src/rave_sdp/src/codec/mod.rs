@@ -9,8 +9,12 @@ pub trait Parameters {
     /// These attributes are added to the media item to signal media information to the receiver of
     /// the SDP file.
     ///
+    /// # Arguments
+    ///
+    /// * `dynamic_payload_type` - Dynamic payload type to associate with media item.
+    ///
     /// # Return value
     ///
     /// One or more media attributes.
-    fn media_attributes(&self) -> Vec<crate::sdp::Attribute>;
+    fn media_attributes(&self, dynamic_payload_type: u8) -> Vec<crate::sdp::Attribute>;
 }
