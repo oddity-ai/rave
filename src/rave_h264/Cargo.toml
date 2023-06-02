@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 bytes = { version = "1.4" }
+openh264 = "0.4.1"
+rave_types = { path = "../rave_types" }

@@ -1,9 +1,13 @@
-use rave_types::{Format, Frame};
+use rave_types::device::Device;
+use rave_types::format::Format;
+use rave_types::frame::Frame;
 
-pub trait FrameOp<FrameFormat1, FrameFormat2>:
-    Fn(&Frame<FrameFormat1>) -> Frame<FrameFormat2>
+pub trait FrameOp<Device1, Format1, Device2, Format2>:
+    Fn(&Frame<Device1, Format1>) -> Frame<Device2, Format2>
 where
-    FrameFormat1: Format,
-    FrameFormat2: Format,
+    Format1: Format,
+    Device1: Device,
+    Format2: Format,
+    Device2: Device,
 {
 }

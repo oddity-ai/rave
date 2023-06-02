@@ -20,7 +20,7 @@ pub fn split_nals_annex_b(mut data: Bytes) -> Result<Vec<Bytes>> {
         } else if data.len() >= 4 && data[0..4] == NAL_HEADER_2 {
             4
         } else {
-            return Err(Error::H264AnnexBStartCodeMissing);
+            return Err(Error::AnnexBStartCodeMissing);
         }
     };
 
