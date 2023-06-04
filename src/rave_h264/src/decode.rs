@@ -1,7 +1,9 @@
+use rave_types::codec::H264;
 use rave_types::decode::Decode;
 use rave_types::device::Local;
-use rave_types::format::Yuv420p;
-use rave_types::frame::Frame;
+use rave_types::format::{Planar, Plane, Yuv420p};
+use rave_types::frame::Yuv420pFrame;
+use rave_types::unit::Unit;
 
 use crate::error::Error;
 
@@ -21,17 +23,37 @@ impl Decoder {
 
 impl Decode for Decoder {
     type Device = Local;
+    type Codec = H264;
     type Format = Yuv420p;
     type Error = Error;
 
-    fn decode(&mut self, packet: &[u8]) -> Result<Option<Frame<Self::Device, Self::Format>>> {
-        self.inner
-            .decode(packet)
-            .map(|out| out.map(convert_frame))
-            .map_err(|err| err.into())
+    fn decode(&mut self, unit: Unit<H264>) -> Result<Option<Yuv420pFrame>> {
+        match self.inner.decode(unit.data.as_slice()) {
+            Ok(frame) => Ok(frame.map(convert_frame)),
+            Err(err) => Err(err.into()),
+        }
     }
 }
 
-fn convert_frame(frame: openh264::decoder::DecodedYUV) -> Frame<Local, Yuv420p> {
-    todo!()
+fn convert_frame(frame: openh264::decoder::DecodedYUV) -> Yuv420pFrame {
+    let (stride_y, stride_u, stride_v) = frame.strides_yuv();
+    Yuv420pFrame::new(
+        Planar {
+            planes: [
+                Plane {
+                    data: frame.y_with_stride().to_vec(),
+                    stride: stride_y,
+                },
+                Plane {
+                    data: frame.u_with_stride().to_vec(),
+                    stride: stride_u,
+                },
+                Plane {
+                    data: frame.v_with_stride().to_vec(),
+                    stride: stride_v,
+                },
+            ],
+        },
+        frame.dimension_rgb(),
+    )
 }
