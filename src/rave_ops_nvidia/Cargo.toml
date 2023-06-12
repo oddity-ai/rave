@@ -8,5 +8,6 @@ keywords.workspace = true
 license.workspace = true
 readme = "README.md"
 repository.workspace = true
+authors.workspace = true
 
 [dependencies]
