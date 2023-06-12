@@ -5,7 +5,7 @@
 <div align="center">
 
 [![version](https://img.shields.io/crates/v/ravelib)](https://crates.io/crates/ravelib)
-[![license](https://img.shields.io/crates/l/ravelib)](#⚖️-license)
+[![license](https://img.shields.io/crates/l/ravelib)](#%EF%B8%8F-license)
 [![docs](https://img.shields.io/docsrs/ravelib)](https://docs.rs/ravelib)
 
 </div>
