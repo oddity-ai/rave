@@ -34,18 +34,19 @@ impl Encode for Encoder {
     type Error = Error;
 
     fn encode(&mut self, frame: Yuv420pFrame) -> Result<Vec<Unit<H264>>> {
-        match self.inner.encode(todo!()) {
-            Ok(output) => Ok((0..output.num_layers())
-                .map(|layer_index| output.layer(layer_index).unwrap())
-                .map(|layer| {
-                    (0..layer.nal_count())
-                        .map(|nal_unit_index| layer.nal_unit(nal_unit_index).unwrap())
-                        .map(|nal_unit| nal_unit.to_vec())
-                })
-                .flatten()
-                .map(|nal_unit| Unit::<H264>::new(nal_unit))
-                .collect()),
-            Err(err) => Err(err.into()),
-        }
+        todo!()
+        // match self.inner.encode(todo!()) {
+        //     Ok(output) => Ok((0..output.num_layers())
+        //         .map(|layer_index| output.layer(layer_index).unwrap())
+        //         .map(|layer| {
+        //             (0..layer.nal_count())
+        //                 .map(|nal_unit_index| layer.nal_unit(nal_unit_index).unwrap())
+        //                 .map(|nal_unit| nal_unit.to_vec())
+        //         })
+        //         .flatten()
+        //         .map(|nal_unit| Unit::<H264>::new(nal_unit))
+        //         .collect()),
+        //     Err(err) => Err(err.into()),
+        // }
     }
 }
