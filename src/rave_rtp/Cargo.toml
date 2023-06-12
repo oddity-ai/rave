@@ -1,8 +1,8 @@
 [package]
 name = "rave_rtp"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-bytes = { version = "1.4" }
-rand = { version = "0.8" }
+bytes = { workspace = true }
+rand = { workspace = true }

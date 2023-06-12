@@ -11,3 +11,14 @@ members = [
     "src/rave_sdp",
     "src/rave_types",
 ]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+base64 = "0.21"
+bytes = { version = "1.4" }
+http = "0.2"
+rand = { version = "0.8" }
+tokio-util = { version = "0.7", default-features = false, features = ["codec"] }

@@ -1,9 +1,9 @@
 [package]
 name = "rave_h264"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-bytes = { version = "1.4" }
+bytes = { workspace = true }
 openh264 = "0.4.1"
 rave_types = { path = "../rave_types" }
