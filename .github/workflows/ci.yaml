@@ -12,7 +12,7 @@ env:
 jobs:
 
   build:
-    runs-on: ${{ matrix.os }}}
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
@@ -31,7 +31,7 @@ jobs:
       run: cargo build --release
 
   test:
-    runs-on: ${{ matrix.os }}}
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
