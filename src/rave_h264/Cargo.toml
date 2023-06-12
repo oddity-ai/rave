@@ -1,9 +1,15 @@
 [package]
 name = "rave_h264"
+description = "Support for H.264 encoding and decoding in rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]
 bytes = { workspace = true }
 openh264 = "0.4.1"
-rave_types = { path = "../rave_types" }
+rave_types = { workspace = true }

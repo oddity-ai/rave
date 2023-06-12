@@ -1,7 +1,13 @@
 [package]
 name = "rave_rtsp"
+description = "Support for playing RTSP streams in rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]
 base64 = { workspace = true }

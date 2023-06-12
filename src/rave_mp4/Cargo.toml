@@ -1,6 +1,12 @@
 [package]
 name = "rave_mp4"
+description = "Support MP4 in rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]

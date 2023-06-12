@@ -1,6 +1,12 @@
 [package]
 name = "rave_ops_nvidia"
+description = "NVIDIA hardware accelerated image operations for rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]

@@ -1,7 +1,13 @@
 [package]
 name = "rave_sdp"
+description = "Support for building and parsing SDP in rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]
-base64 = "0.21"
+base64 = { workspace = true }

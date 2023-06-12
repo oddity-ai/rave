@@ -1068,8 +1068,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-.justfile
-
 # (Cargo)
 # will have compiled files and executables
 debug/

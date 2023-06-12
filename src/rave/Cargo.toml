@@ -1,6 +1,16 @@
 [package]
-name = "rave"
+name = "ravelib"
+description = "Rust audio/video engine."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
 
 [dependencies]
+rave_types = { workspace = true }
+
+[lib]
+name = "rave"

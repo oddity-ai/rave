@@ -1,7 +1,13 @@
 [package]
 name = "rave_ops"
+description = "Image operations for rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]
-rave_types = { path = "../rave_types" }
+rave_types = { workspace = true }

@@ -1,7 +1,13 @@
 [package]
 name = "rave_rtp"
+description = "Support for RTP packetization and depacketization in rave."
 version.workspace = true
 edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
 
 [dependencies]
 bytes = { workspace = true }
