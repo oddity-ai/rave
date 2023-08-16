@@ -2,15 +2,15 @@
 use crate::codec::Codec;
 
 pub struct Unit<C: Codec> {
-    pub data: Vec<u8>,
-    _phantom: std::marker::PhantomData<C>,
+    pub data: C::Data,
 }
 
 impl<C: Codec> Unit<C> {
-    pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            data,
-            _phantom: Default::default(),
-        }
+    pub fn new(data: C::Data) -> Self {
+        Self { data }
+    }
+
+    pub fn into_data(self) -> C::Data {
+        self.data
     }
 }

@@ -5,6 +5,9 @@ use crate::packetization::common::{PacketizationParameters, Packetizer};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
+use rave_types::codec::H264;
+use rave_types::unit::Unit;
+
 type Result<T> = std::result::Result<T, Error>;
 
 /// RTP H264 packetizer.
@@ -65,7 +68,7 @@ impl H264Packetizer {
     ///
     /// Zero or more RTP packets.
     #[inline]
-    pub fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
+    pub fn packetize(&mut self, data: Vec<Unit<H264>>, timestamp: u32) -> Result<Vec<Packet>> {
         self.inner.packetize(data, timestamp)
     }
 }
@@ -89,7 +92,7 @@ pub trait H264Packetize {
     ///
     /// No packets may be returned even if valid data was passed. More than one packet may be
     /// produced if the data is fragmented over multiple packets to fit within the configured MTU.
-    fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>>;
+    fn packetize(&mut self, data: Vec<Unit<H264>>, timestamp: u32) -> Result<Vec<Packet>>;
 }
 
 /// Single NAL unit mode H264 packetizer.
@@ -134,7 +137,7 @@ impl H264Packetize for H264PacketizerMode0 {
     /// # Return value
     ///
     /// Zero or more RTP packets.
-    fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
+    fn packetize(&mut self, data: Vec<Unit<H264>>, timestamp: u32) -> Result<Vec<Packet>> {
         let num_packets = data.len();
         data.into_iter()
             .enumerate()
@@ -142,8 +145,11 @@ impl H264Packetize for H264PacketizerMode0 {
                 // Since the caller must call this function exactly once per access unit, we can
                 // reliably set the marker bit on the last packet.
                 let is_last_packet_in_access_unit = i == num_packets - 1;
-                self.inner
-                    .packetize(nal_unit, timestamp, is_last_packet_in_access_unit)
+                self.inner.packetize(
+                    nal_unit.into_data(),
+                    timestamp,
+                    is_last_packet_in_access_unit,
+                )
             })
             .collect()
     }
@@ -259,7 +265,6 @@ impl H264PacketizerMode1 {
             })?);
             payload.put(nal_unit);
         }
-
         Ok(payload.into())
     }
 }
@@ -286,10 +291,13 @@ impl H264Packetize for H264PacketizerMode1 {
     /// # Return value
     ///
     /// Zero or more packets.
-    fn packetize(&mut self, data: Vec<Bytes>, timestamp: u32) -> Result<Vec<Packet>> {
+    fn packetize(&mut self, data: Vec<Unit<H264>>, timestamp: u32) -> Result<Vec<Packet>> {
+        let data = data
+            .into_iter()
+            .map(|nal_unit| nal_unit.into_data())
+            .collect();
         if let Some(mtu) = self.mtu {
             let mut packets: Vec<Packet> = Vec::new();
-
             let groups = self.group_nal_units(data, mtu);
             let groups_len = groups.len();
             for (i, group) in groups.into_iter().enumerate() {
@@ -391,7 +399,7 @@ impl H264Depacketizer {
     ///
     /// No NAL units may be produced if the packet contains part of a fragmented unit. More packets
     /// may be produced if the RTP packet payload is an aggregation packet (STAP or MTAP).
-    pub fn depacketize(&mut self, packet: &Packet) -> Result<Vec<Bytes>> {
+    pub fn depacketize(&mut self, packet: &Packet) -> Result<Vec<Unit<H264>>> {
         if packet.payload.len() <= 1 {
             return Err(Error::H264NalUnitLengthTooSmall {
                 len: packet.payload.len(),
@@ -403,7 +411,7 @@ impl H264Depacketizer {
             // NAL
             1..=23 => {
                 // This is just a normal NAL unit and can be passed on to the decoder as is.
-                Ok(vec![packet.payload.clone()])
+                Ok(vec![Unit::new(packet.payload.clone())])
             }
             // STAP-A
             24 => {
@@ -424,7 +432,7 @@ impl H264Depacketizer {
                                 need: nal_unit_length,
                             }));
                         }
-                        Some(Ok(payload.copy_to_bytes(nal_unit_length)))
+                        Some(Ok(Unit::new(payload.copy_to_bytes(nal_unit_length))))
                     } else {
                         None
                     }
@@ -495,7 +503,7 @@ impl H264Depacketizer {
                     let mut nal_unit = BytesMut::new();
                     nal_unit.put_u8(nal_unit_type);
                     nal_unit.put(recovered_nal_unit_payload);
-                    Ok(vec![nal_unit.freeze()])
+                    Ok(vec![Unit::new(nal_unit.freeze())])
                 } else {
                     Ok(Vec::new())
                 }

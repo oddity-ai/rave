@@ -13,3 +13,4 @@ authors.workspace = true
 [dependencies]
 bytes = { workspace = true }
 rand = { workspace = true }
+rave_types = { workspace = true }

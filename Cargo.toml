@@ -27,5 +27,5 @@ base64 = "0.21"
 bytes = { version = "1.4" }
 http = "0.2"
 rand = { version = "0.8" }
-rave_types = { version = "0.1.1" }
+rave_types = { path = "src/rave_types" }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
