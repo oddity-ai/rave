@@ -6,8 +6,8 @@ pub type Yuv420pFrame = Frame<Local, Yuv420p>;
 pub type RgbFrame = Frame<Local, Rgb24>;
 
 pub struct Frame<D: Device, F: Format> {
-    data: D::Container<F::Data>,
-    dims: (usize, usize),
+    pub data: D::Container<F::Data>,
+    pub dims: (usize, usize),
 }
 
 impl<D: Device, F: Format> Frame<D, F> {

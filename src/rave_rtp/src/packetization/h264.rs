@@ -525,6 +525,13 @@ impl H264Depacketizer {
     }
 }
 
+impl Default for H264Depacketizer {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// H264 packetization mode.
 ///
 /// The following table (from RFC 6184) specifies which payload types are supported per

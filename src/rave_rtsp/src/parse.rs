@@ -701,7 +701,6 @@ Content-Length: 16\r\n\
         EXAMPLE_REQUEST_PLAY_CRLN
             .iter()
             .copied()
-            .into_iter()
             .filter(|b| *b != b'\x0d')
             .collect::<Bytes>()
     }
@@ -710,7 +709,6 @@ Content-Length: 16\r\n\
         EXAMPLE_REQUEST_PLAY_CRLN
             .iter()
             .copied()
-            .into_iter()
             .filter(|b| *b != b'\x0a')
             .collect::<Bytes>()
     }

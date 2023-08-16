@@ -28,7 +28,7 @@ impl Decode for Decoder {
     type Error = Error;
 
     fn decode(&mut self, unit: Unit<H264>) -> Result<Option<Yuv420pFrame>> {
-        match self.inner.decode(unit.data.as_slice()) {
+        match self.inner.decode(unit.data.as_ref()) {
             Ok(frame) => Ok(frame.map(convert_frame)),
             Err(err) => Err(err.into()),
         }

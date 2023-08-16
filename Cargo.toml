@@ -27,5 +27,13 @@ base64 = "0.21"
 bytes = { version = "1.4" }
 http = "0.2"
 rand = { version = "0.8" }
+rave_h264 = { path = "src/rave_h264" }
+rave_h264_nvidia = { path = "src/rave_h264_nvidia" }
+rave_mp4 = { path = "src/rave_mp4" }
+rave_ops = { path = "src/rave_ops" }
+rave_ops_nvidia = { path = "src/rave_ops_nvidia" }
+rave_rtp = { path = "src/rave_rtp" }
+rave_rtsp = { path = "src/rave_rtsp" }
+rave_sdp = { path = "src/rave_sdp" }
 rave_types = { path = "src/rave_types" }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }

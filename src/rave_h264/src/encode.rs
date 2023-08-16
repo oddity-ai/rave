@@ -34,19 +34,73 @@ impl Encode for Encoder {
     type Error = Error;
 
     fn encode(&mut self, frame: Yuv420pFrame) -> Result<Vec<Unit<H264>>> {
-        todo!()
-        // match self.inner.encode(todo!()) {
-        //     Ok(output) => Ok((0..output.num_layers())
-        //         .map(|layer_index| output.layer(layer_index).unwrap())
-        //         .map(|layer| {
-        //             (0..layer.nal_count())
-        //                 .map(|nal_unit_index| layer.nal_unit(nal_unit_index).unwrap())
-        //                 .map(|nal_unit| nal_unit.to_vec())
-        //         })
-        //         .flatten()
-        //         .map(|nal_unit| Unit::<H264>::new(nal_unit))
-        //         .collect()),
-        //     Err(err) => Err(err.into()),
-        // }
+        match self.inner.encode(&CompatibleYuv420pFrame::from(frame)) {
+            Ok(output) => {
+                let mut units = Vec::new();
+                for layer_index in 0..output.num_layers() {
+                    let layer = output.layer(layer_index).unwrap();
+                    for nal_unit_index in 0..layer.nal_count() {
+                        units.push(Unit::new(
+                            layer.nal_unit(nal_unit_index).unwrap().to_vec().into(),
+                        ));
+                    }
+                }
+                Ok(units)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+pub struct CompatibleYuv420pFrame {
+    inner: Yuv420pFrame,
+}
+
+impl From<Yuv420pFrame> for CompatibleYuv420pFrame {
+    #[inline(always)]
+    fn from(value: Yuv420pFrame) -> Self {
+        CompatibleYuv420pFrame { inner: value }
+    }
+}
+
+impl openh264::formats::YUVSource for CompatibleYuv420pFrame {
+    #[inline]
+    fn width(&self) -> i32 {
+        self.inner.dims.0.try_into().unwrap()
+    }
+
+    #[inline]
+    fn height(&self) -> i32 {
+        self.inner.dims.1.try_into().unwrap()
+    }
+
+    #[inline]
+    fn y(&self) -> &[u8] {
+        &self.inner.data.planes[0].data
+    }
+
+    #[inline]
+    fn u(&self) -> &[u8] {
+        &self.inner.data.planes[1].data
+    }
+
+    #[inline]
+    fn v(&self) -> &[u8] {
+        &self.inner.data.planes[2].data
+    }
+
+    #[inline]
+    fn y_stride(&self) -> i32 {
+        self.inner.dims.0.try_into().unwrap()
+    }
+
+    #[inline]
+    fn u_stride(&self) -> i32 {
+        self.inner.dims.0.try_into().unwrap()
+    }
+
+    #[inline]
+    fn v_stride(&self) -> i32 {
+        self.inner.dims.0.try_into().unwrap()
     }
 }

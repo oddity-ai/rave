@@ -71,18 +71,12 @@ impl std::str::FromStr for Method {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Version {
+    #[default]
     V1,
     V2,
     Unknown,
-}
-
-impl Default for Version {
-    #[inline]
-    fn default() -> Version {
-        Version::V1
-    }
 }
 
 impl std::fmt::Display for Version {
