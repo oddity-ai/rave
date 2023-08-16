@@ -93,3 +93,10 @@ impl InterleavedParser {
         }
     }
 }
+
+impl Default for InterleavedParser {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}

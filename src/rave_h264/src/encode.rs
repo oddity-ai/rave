@@ -52,7 +52,7 @@ impl Encode for Encoder {
     }
 }
 
-pub struct CompatibleYuv420pFrame {
+struct CompatibleYuv420pFrame {
     inner: Yuv420pFrame,
 }
 

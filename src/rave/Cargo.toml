@@ -11,7 +11,26 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+rave_h264 = { workspace = true, optional = true }
+rave_h264_nvidia = { workspace = true, optional = true }
+rave_mp4 = { workspace = true, optional = true }
+rave_ops = { workspace = true, optional = true }
+rave_ops_nvidia = { workspace = true, optional = true }
+rave_rtp = { workspace = true, optional = true }
+rave_rtsp = { workspace = true, optional = true }
+rave_sdp = { workspace = true, optional = true }
 rave_types = { workspace = true }
+
+[features]
+default = ["h264", "mp4", "ops"]
+h264 = ["dep:rave_h264"]
+h264_nvidia = ["dep:rave_h264_nvidia"]
+mp4 = ["dep:rave_mp4"]
+ops = ["dep:rave_ops"]
+ops_nvidia = ["dep:rave_ops_nvidia"]
+rtp = ["dep:rave_rtp", "sdp"]
+rtsp = ["dep:rave_rtsp", "rtp", "sdp"]
+sdp = ["dep:rave_sdp"]
 
 [lib]
 name = "rave"

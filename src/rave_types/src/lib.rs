@@ -10,3 +10,11 @@ pub mod encode;
 pub mod format;
 pub mod frame;
 pub mod unit;
+
+pub use codec::{Codec, H264};
+pub use decode::Decode;
+pub use device::{Cuda, Device, Local};
+pub use encode::Encode;
+pub use format::{Format, Planar, Plane, Rgb24, Yuv420p};
+pub use frame::{Frame, RgbFrame, Yuv420pFrame};
+pub use unit::Unit;

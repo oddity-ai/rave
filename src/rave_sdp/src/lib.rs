@@ -1,9 +1,10 @@
-mod builder;
-mod codec;
-mod error;
-mod reader;
-mod sdp;
-mod time_range;
+pub mod builder;
+pub mod codec;
+pub mod error;
+pub mod reader;
+pub mod sdp;
+pub mod time_range;
+
 mod time_utils;
 
 pub use builder::Builder;
