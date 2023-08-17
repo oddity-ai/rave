@@ -19,7 +19,7 @@ impl Serialize for Request {
         dst.put_u8(b'\r');
         dst.put_u8(b'\n');
 
-        for (var, val) in self.headers.into_iter() {
+        for (var, val) in self.headers.into_map() {
             dst.put(format!("{var}: {val}\r\n").as_bytes());
         }
 
@@ -43,7 +43,7 @@ impl Serialize for Response {
         dst.put_u8(b'\r');
         dst.put_u8(b'\n');
 
-        for (var, val) in self.headers.into_iter() {
+        for (var, val) in self.headers.into_map() {
             dst.put(format!("{var}: {val}\r\n").as_bytes());
         }
 
@@ -109,11 +109,9 @@ impl Serialize for StatusCode {
 mod tests {
     // FIXME: A bunch of macros could make this way more readable.
 
-    use std::collections::BTreeMap;
-
     use bytes::{Bytes, BytesMut};
 
-    use crate::message::Message;
+    use crate::message::{Headers, Message};
     use crate::request::RequestMetadata;
     use crate::response::ResponseMetadata;
 
@@ -137,7 +135,7 @@ Require: implicit-play\r\n\
                 "rtsp://example.com/media.mp4".try_into().unwrap(),
                 Version::V1,
             ),
-            BTreeMap::from([
+            Headers::from_iter([
                 ("CSeq".to_string(), "1".to_string()),
                 ("Proxy-Require".to_string(), "gzipped-messages".to_string()),
                 ("Require".to_string(), "implicit-play".to_string()),
@@ -171,7 +169,7 @@ Cc: value\r\n\
                 "rtsp://example.com/media.mp4".try_into().unwrap(),
                 Version::V1,
             ),
-            BTreeMap::from([
+            Headers::from_iter([
                 ("Cc".to_string(), "value".to_string()),
                 ("C".to_string(), "value".to_string()),
                 ("Cb".to_string(), "value".to_string()),
@@ -199,7 +197,7 @@ CSeq: 1\r\n\
 
         let request = Request::new(
             RequestMetadata::new(Method::Options, "*".try_into().unwrap(), Version::V1),
-            BTreeMap::from([("CSeq".to_string(), "1".to_string())]),
+            Headers::from_iter([("CSeq".to_string(), "1".to_string())]),
             None,
         );
 
@@ -221,7 +219,7 @@ Public: DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE\r\n\
 
         let response = Response::new(
             ResponseMetadata::new(Version::V1, 200, "OK".to_string()),
-            BTreeMap::from([
+            Headers::from_iter([
                 ("CSeq".to_string(), "1".to_string()),
                 (
                     "Public".to_string(),
@@ -248,7 +246,7 @@ CSeq: 1\r\n\
 
         let response = Response::new(
             ResponseMetadata::new(Version::V1, 404, "Stream Not Found".to_string()),
-            BTreeMap::from([("CSeq".to_string(), "1".to_string())]),
+            Headers::from_iter([("CSeq".to_string(), "1".to_string())]),
             None,
         );
 
@@ -273,7 +271,7 @@ CSeq: 2\r\n\
                 "rtsp://example.com/media.mp4".try_into().unwrap(),
                 Version::V1,
             ),
-            BTreeMap::from([("CSeq".to_string(), "2".to_string())]),
+            Headers::from_iter([("CSeq".to_string(), "2".to_string())]),
             None,
         );
 
@@ -298,7 +296,7 @@ CSeq: 2\r\n\
                 "rtsp://example.com/media.mp4".try_into().unwrap(),
                 Version::V2,
             ),
-            BTreeMap::from([("CSeq".to_string(), "2".to_string())]),
+            Headers::from_iter([("CSeq".to_string(), "2".to_string())]),
             None,
         );
 
@@ -315,7 +313,7 @@ CSeq: 2\r\n\
                 "rtsp://example.com/media.mp4".try_into().unwrap(),
                 Version::Unknown,
             ),
-            BTreeMap::from([("CSeq".to_string(), "2".to_string())]),
+            Headers::from_iter([("CSeq".to_string(), "2".to_string())]),
             None,
         );
 
@@ -356,7 +354,7 @@ a=StreamName:string;\"hinted audio track\""
 
         let response = Response::new(
             ResponseMetadata::new(Version::V1, 200, "OK".to_string()),
-            BTreeMap::from([
+            Headers::from_iter([
                 ("CSeq".to_string(), "2".to_string()),
                 (
                     "Content-Base".to_string(),
@@ -409,7 +407,7 @@ Session: 1234abcd\r\n\
                 "rtsp://example.com/stream/0".try_into().unwrap(),
                 Version::V1,
             ),
-            BTreeMap::from([
+            Headers::from_iter([
                 ("CSeq".to_string(), "1".to_string()),
                 ("Content-Length".to_string(), "16".to_string()),
                 ("Session".to_string(), "1234abcd".to_string()),

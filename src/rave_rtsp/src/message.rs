@@ -13,7 +13,72 @@ pub trait Message: Serialize + std::fmt::Display {
     fn new(metadata: Self::Metadata, headers: Headers, body: Option<Bytes>) -> Self;
 }
 
-pub type Headers = BTreeMap<String, String>;
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Headers {
+    map: BTreeMap<String, String>,
+}
+
+// // TODO: better place for this (maybe newtype `Headers` and this?)
+// pub fn headers_with_cseq(cseq: usize) -> Headers {
+//     let mut headers = std::collections::BTreeMap::new();
+//     headers.insert("CSeq".to_string(), cseq.to_string());
+//     headers
+// }
+impl Headers {
+    pub fn new() -> Self {
+        Self {
+            map: BTreeMap::new(),
+        }
+    }
+
+    pub fn with_cseq(cseq: usize) -> Headers {
+        Self::from_iter([("CSeq".to_string(), cseq.to_string())])
+    }
+
+    pub fn with_cseq_and_session(cseq: usize, session_id: &str) -> Headers {
+        Self::from_iter([
+            ("CSeq".to_string(), cseq.to_string()),
+            ("Session".to_string(), session_id.to_string()),
+        ])
+    }
+
+    pub fn from_iter(headers: impl IntoIterator<Item = (String, String)>) -> Self {
+        Self {
+            map: BTreeMap::from_iter(headers),
+        }
+    }
+
+    pub fn insert(&mut self, key: String, value: String) -> Option<String> {
+        self.map.insert(key, value)
+    }
+
+    pub fn contains(&self, key: &str) -> bool {
+        self.map.contains_key(key)
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.map.get(key).map(|s| s.as_str())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    pub fn into_map(self) -> BTreeMap<String, String> {
+        self.map
+    }
+
+    pub fn as_map(&self) -> &BTreeMap<String, String> {
+        &self.map
+    }
+}
+
+impl From<BTreeMap<String, String>> for Headers {
+    #[inline]
+    fn from(map: BTreeMap<String, String>) -> Self {
+        Self { map }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {

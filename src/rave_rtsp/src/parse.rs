@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use crate::buffer::{Buf, ReadLine};
 use crate::error::{Error, Result};
 use crate::message::{Bytes, Headers, Message, StatusCode, Uri, Version};
@@ -28,7 +26,7 @@ impl<M: Message> Parser<M> {
         Self {
             state: State::Head(Head::FirstLine),
             metadata: None,
-            headers: BTreeMap::new(),
+            headers: Headers::new(),
             body: None,
         }
     }
@@ -110,7 +108,7 @@ impl<M: Message> Parser<M> {
 
     fn parse_inner_head_line(
         metadata: &mut Option<M::Metadata>,
-        headers: &mut BTreeMap<String, String>,
+        headers: &mut Headers,
         line: String,
         head: Head,
     ) -> Result<Head> {
@@ -140,14 +138,14 @@ impl<M: Message> Parser<M> {
     }
 
     fn have_content_length(&self) -> bool {
-        self.headers.contains_key("Content-Length")
+        self.headers.contains("Content-Length")
     }
 
     fn find_content_length(&self) -> Result<Option<usize>> {
         if let Some(content_length) = self.headers.get("Content-Length") {
             Ok(Some(content_length.parse::<usize>().map_err(|_| {
                 Error::ContentLengthNotInteger {
-                    value: content_length.clone(),
+                    value: content_length.to_string(),
                 }
             })?))
         } else {
@@ -334,14 +332,11 @@ Proxy-Require: gzipped-messages
         assert_eq!(request.method, Method::Options);
         assert_eq!(request.uri, "rtsp://example.com/media.mp4");
         assert_eq!(request.version, Version::V1);
-        assert_eq!(request.headers.get("CSeq"), Some(&"1".to_string()));
-        assert_eq!(
-            request.headers.get("Require"),
-            Some(&"implicit-play".to_string())
-        );
+        assert_eq!(request.headers.get("CSeq"), Some("1"));
+        assert_eq!(request.headers.get("Require"), Some("implicit-play"));
         assert_eq!(
             request.headers.get("Proxy-Require"),
-            Some(&"gzipped-messages".to_string())
+            Some("gzipped-messages")
         );
     }
 
@@ -358,7 +353,7 @@ CSeq: 1
         assert_eq!(request.method, Method::Options);
         assert_eq!(request.uri, "*");
         assert_eq!(request.version, Version::V1);
-        assert_eq!(request.headers.get("CSeq"), Some(&"1".to_string()));
+        assert_eq!(request.headers.get("CSeq"), Some("1"));
     }
 
     #[test]
@@ -376,10 +371,10 @@ Public: DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE
         assert_eq!(response.status, 200);
         assert_eq!(response.status(), StatusCategory::Success);
         assert_eq!(response.reason, "OK");
-        assert_eq!(response.headers.get("CSeq"), Some(&"1".to_string()));
+        assert_eq!(response.headers.get("CSeq"), Some("1"));
         assert_eq!(
             response.headers.get("Public"),
-            Some(&"DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE".to_string())
+            Some("DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE")
         );
     }
 
@@ -397,7 +392,7 @@ CSeq: 1
         assert_eq!(response.status, 404);
         assert_eq!(response.status(), StatusCategory::ClientError);
         assert_eq!(response.reason, "Stream Not Found");
-        assert_eq!(response.headers.get("CSeq"), Some(&"1".to_string()));
+        assert_eq!(response.headers.get("CSeq"), Some("1"));
     }
 
     #[test]
@@ -413,7 +408,7 @@ CSeq: 2
         assert_eq!(request.method, Method::Describe);
         assert_eq!(request.uri, "rtsp://example.com/media.mp4");
         assert_eq!(request.version, Version::V1);
-        assert_eq!(request.headers.get("CSeq"), Some(&"2".to_string()));
+        assert_eq!(request.headers.get("CSeq"), Some("2"));
     }
 
     #[test]
@@ -429,7 +424,7 @@ CSeq: 2
         assert_eq!(request.method, Method::Describe);
         assert_eq!(request.uri, "rtsp://example.com/media.mp4");
         assert_eq!(request.version, Version::V2);
-        assert_eq!(request.headers.get("CSeq"), Some(&"2".to_string()));
+        assert_eq!(request.headers.get("CSeq"), Some("2"));
     }
 
     #[test]
@@ -445,7 +440,7 @@ CSeq: 2
         assert_eq!(request.method, Method::Describe);
         assert_eq!(request.uri, "rtsp://example.com/media.mp4");
         assert_eq!(request.version, Version::Unknown);
-        assert_eq!(request.headers.get("CSeq"), Some(&"2".to_string()));
+        assert_eq!(request.headers.get("CSeq"), Some("2"));
     }
 
     #[test]
@@ -479,19 +474,16 @@ a=StreamName:string;"hinted audio track""###;
         assert_eq!(response.version, Version::V1);
         assert_eq!(response.status, 200);
         assert_eq!(response.reason, "OK");
-        assert_eq!(response.headers.get("CSeq"), Some(&"2".to_string()));
+        assert_eq!(response.headers.get("CSeq"), Some("2"));
         assert_eq!(
             response.headers.get("Content-Base"),
-            Some(&"rtsp://example.com/media.mp4".to_string())
+            Some("rtsp://example.com/media.mp4")
         );
         assert_eq!(
             response.headers.get("Content-Type"),
-            Some(&"application/sdp".to_string())
+            Some("application/sdp")
         );
-        assert_eq!(
-            response.headers.get("Content-Length"),
-            Some(&"443".to_string())
-        );
+        assert_eq!(response.headers.get("Content-Length"), Some("443"));
     }
 
     const EXAMPLE_PIPELINED_REQUESTS: &[u8] = br###"RECORD rtsp://example.com/media.mp4 RTSP/1.0
@@ -584,41 +576,29 @@ Session: 12345678
         assert_eq!(requests[0].method, Method::Record);
         assert_eq!(requests[0].uri, "rtsp://example.com/media.mp4");
         assert_eq!(requests[0].version, Version::V1);
-        assert_eq!(requests[0].headers.get("CSeq"), Some(&"6".to_string()));
-        assert_eq!(
-            requests[0].headers.get("Session"),
-            Some(&"12345678".to_string())
-        );
+        assert_eq!(requests[0].headers.get("CSeq"), Some("6"));
+        assert_eq!(requests[0].headers.get("Session"), Some("12345678"));
         assert_eq!(requests[0].body, None);
         assert_eq!(requests[1].method, Method::Announce);
         assert_eq!(requests[1].uri, "rtsp://example.com/media.mp4");
         assert_eq!(requests[1].version, Version::V1);
-        assert_eq!(requests[1].headers.get("CSeq"), Some(&"7".to_string()));
-        assert_eq!(
-            requests[1].headers.get("Session"),
-            Some(&"12345678".to_string())
-        );
+        assert_eq!(requests[1].headers.get("CSeq"), Some("7"));
+        assert_eq!(requests[1].headers.get("Session"), Some("12345678"));
         assert_eq!(
             requests[1].headers.get("Date"),
-            Some(&"23 Jan 1997 15:35:06 GMT".to_string())
+            Some("23 Jan 1997 15:35:06 GMT")
         );
         assert_eq!(
             requests[1].headers.get("Content-Type"),
-            Some(&"application/sdp".to_string())
+            Some("application/sdp")
         );
-        assert_eq!(
-            requests[1].headers.get("Content-Length"),
-            Some(&"305".to_string())
-        );
+        assert_eq!(requests[1].headers.get("Content-Length"), Some("305"));
         assert_eq!(requests[1].body.as_ref().unwrap().len(), 305);
         assert_eq!(requests[2].method, Method::Teardown);
         assert_eq!(requests[2].uri, "rtsp://example.com/media.mp4");
         assert_eq!(requests[2].version, Version::V1);
-        assert_eq!(requests[2].headers.get("CSeq"), Some(&"8".to_string()));
-        assert_eq!(
-            requests[2].headers.get("Session"),
-            Some(&"12345678".to_string())
-        );
+        assert_eq!(requests[2].headers.get("CSeq"), Some("8"));
+        assert_eq!(requests[2].headers.get("Session"), Some("12345678"));
         assert_eq!(requests[2].body, None);
     }
 
@@ -780,15 +760,9 @@ Content-Length: 16\r\n\
         assert_eq!(request.method, Method::Play);
         assert_eq!(request.uri, "rtsp://example.com/stream/0");
         assert_eq!(request.version, Version::V1);
-        assert_eq!(request.headers.get("CSeq"), Some(&"1".to_string()));
-        assert_eq!(
-            request.headers.get("Session"),
-            Some(&"1234abcd".to_string())
-        );
-        assert_eq!(
-            request.headers.get("Content-Length"),
-            Some(&"16".to_string())
-        );
+        assert_eq!(request.headers.get("CSeq"), Some("1"));
+        assert_eq!(request.headers.get("Session"), Some("1234abcd"));
+        assert_eq!(request.headers.get("Content-Length"), Some("16"));
         assert_eq!(request.body, Some(b"0123456789abcdef".as_slice().into()));
     }
 }

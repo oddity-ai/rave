@@ -30,12 +30,59 @@ impl Request {
     pub fn options(uri: &Uri, cseq: usize) -> Self {
         Request::new(
             RequestMetadata::new_v1(Method::Options, uri.clone()),
-            headers_with_cseq(cseq),
+            Headers::with_cseq(cseq),
             None,
         )
     }
 
-    // TODO
+    pub fn describe(uri: &Uri, cseq: usize) -> Self {
+        Request::new(
+            RequestMetadata::new_v1(Method::Describe, uri.clone()),
+            Headers::with_cseq(cseq),
+            None,
+        )
+    }
+
+    pub fn setup(uri: &Uri, cseq: usize, transport: Transport, session: Option<&str>) -> Self {
+        let mut headers = match session {
+            Some(session_id) => Headers::with_cseq_and_session(cseq, session_id),
+            None => Headers::with_cseq(cseq),
+        };
+        headers.insert("Transport".to_string(), transport.to_string());
+        Request::new(
+            RequestMetadata::new_v1(Method::Setup, uri.clone()),
+            headers,
+            None,
+        )
+    }
+
+    pub fn play(uri: &Uri, cseq: usize, session: &str, range: Range) -> Self {
+        let mut headers = Headers::with_cseq_and_session(cseq, session);
+        headers.insert("Range".to_string(), range.to_string());
+        Request::new(
+            RequestMetadata::new_v1(Method::Play, uri.clone()),
+            headers,
+            None,
+        )
+    }
+
+    pub fn pause(uri: &Uri, cseq: usize, session: &str) -> Self {
+        Request::new(
+            RequestMetadata::new_v1(Method::Pause, uri.clone()),
+            Headers::with_cseq_and_session(cseq, session),
+            None,
+        )
+    }
+
+    pub fn teardown(uri: &Uri, cseq: usize, session: &str) -> Self {
+        Request::new(
+            RequestMetadata::new_v1(Method::Teardown, uri.clone()),
+            Headers::with_cseq_and_session(cseq, session),
+            None,
+        )
+    }
+
+    // FIXME: implement request constructors for remaining RTSP methods.
 
     pub fn uri(&self) -> &Uri {
         &self.uri
@@ -46,7 +93,7 @@ impl Request {
     }
 
     pub fn require(&self) -> Option<&str> {
-        self.headers.get("Require").map(|val| val.as_str())
+        self.headers.get("Require")
     }
 
     pub fn accept(&self) -> Vec<&str> {
@@ -57,7 +104,7 @@ impl Request {
     }
 
     pub fn session(&self) -> Option<&str> {
-        self.headers.get("Session").map(|val| val.as_str())
+        self.headers.get("Session")
     }
 
     pub fn transport(&self) -> Result<Vec<Transport>, Error> {
@@ -86,7 +133,7 @@ impl std::fmt::Display for Request {
 
         if !self.headers.is_empty() {
             writeln!(f, "\nHeaders:")?;
-            for (var, val) in &self.headers {
+            for (var, val) in self.headers.as_map() {
                 writeln!(f, " - {}: {}", &var, &val)?;
             }
         }
@@ -122,11 +169,4 @@ impl RequestMetadata {
             version: Version::V1,
         }
     }
-}
-
-// TODO: better place for this (maybe newtype `Headers` and this?)
-pub fn headers_with_cseq(cseq: usize) -> Headers {
-    let mut headers = std::collections::BTreeMap::new();
-    headers.insert("CSeq".to_string(), cseq.to_string());
-    headers
 }

@@ -60,7 +60,7 @@ impl std::fmt::Display for Response {
 
         if !self.headers.is_empty() {
             writeln!(f, "\nHeaders:")?;
-            for (var, val) in &self.headers {
+            for (var, val) in self.headers.as_map() {
                 writeln!(f, " - {}: {}", &var, &val)?;
             }
         }
