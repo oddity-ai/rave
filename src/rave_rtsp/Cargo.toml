@@ -13,5 +13,11 @@ authors.workspace = true
 [dependencies]
 base64 = { workspace = true }
 bytes = { workspace = true }
+futures = { workspace = true, optional = true }
 http = { workspace = true }
+tokio = { workspace = true, optional = true }
+tokio-stream = { workspace = true, optional = true }
 tokio-util = { workspace = true }
+
+[features]
+client = ["dep:tokio", "dep:tokio-stream", "dep:futures"]

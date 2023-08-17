@@ -25,6 +25,7 @@ authors = ["Oddity.ai Developers <hello@oddity.ai>"]
 [workspace.dependencies]
 base64 = "0.21"
 bytes = { version = "1.4" }
+futures = { version = "0.3", default-features = false, features = ["std"] }
 http = "0.2"
 rand = { version = "0.8" }
 rave_h264 = { path = "src/rave_h264" }
@@ -36,4 +37,12 @@ rave_rtp = { path = "src/rave_rtp" }
 rave_rtsp = { path = "src/rave_rtsp" }
 rave_sdp = { path = "src/rave_sdp" }
 rave_types = { path = "src/rave_types" }
+tokio = { version = "1.0", default-features = false, features = [
+    "io-util",
+    "io-std",
+    "macros",
+    "net",
+    "bytes",
+] }
+tokio-stream = { version = "0.1", default-features = false }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }

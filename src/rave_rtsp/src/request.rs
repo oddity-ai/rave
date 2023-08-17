@@ -27,6 +27,16 @@ impl Message for Request {
 }
 
 impl Request {
+    pub fn options(uri: &Uri, cseq: usize) -> Self {
+        Request::new(
+            RequestMetadata::new_v1(Method::Options, uri.clone()),
+            headers_with_cseq(cseq),
+            None,
+        )
+    }
+
+    // TODO
+
     pub fn uri(&self) -> &Uri {
         &self.uri
     }
@@ -104,4 +114,19 @@ impl RequestMetadata {
             version,
         }
     }
+
+    pub(super) fn new_v1(method: Method, uri: Uri) -> Self {
+        Self {
+            method,
+            uri,
+            version: Version::V1,
+        }
+    }
+}
+
+// TODO: better place for this (maybe newtype `Headers` and this?)
+pub fn headers_with_cseq(cseq: usize) -> Headers {
+    let mut headers = std::collections::BTreeMap::new();
+    headers.insert("CSeq".to_string(), cseq.to_string());
+    headers
 }

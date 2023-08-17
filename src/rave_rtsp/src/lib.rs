@@ -1,3 +1,5 @@
+#[cfg(feature = "client")]
+pub mod client;
 pub mod error;
 pub mod interleaved;
 pub mod io;
@@ -8,11 +10,13 @@ pub mod request;
 pub mod response;
 pub mod rtp_info;
 pub mod serialize;
-pub mod tokio;
+pub mod tokio_codec;
 pub mod transport;
 
 mod buffer;
 
+#[cfg(feature = "client")]
+pub use client::Client;
 pub use error::{Error, Result};
 pub use interleaved::{MaybeInterleaved, RequestMaybeInterleaved, ResponseMaybeInterleaved};
 pub use io::{AsClient, AsServer, Target};
@@ -23,5 +27,5 @@ pub use request::Request;
 pub use response::Response;
 pub use rtp_info::RtpInfo;
 pub use serialize::Serialize;
-pub use tokio::Codec;
+pub use tokio_codec::Codec;
 pub use transport::{Channel, Lower, Parameter, Port, Transport};
