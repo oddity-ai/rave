@@ -42,12 +42,6 @@ impl Headers {
         ])
     }
 
-    pub fn from_iter(headers: impl IntoIterator<Item = (String, String)>) -> Self {
-        Self {
-            map: BTreeMap::from_iter(headers),
-        }
-    }
-
     pub fn insert(&mut self, key: String, value: String) -> Option<String> {
         self.map.insert(key, value)
     }
@@ -77,6 +71,14 @@ impl From<BTreeMap<String, String>> for Headers {
     #[inline]
     fn from(map: BTreeMap<String, String>) -> Self {
         Self { map }
+    }
+}
+
+impl std::iter::FromIterator<(String, String)> for Headers {
+    fn from_iter<I: IntoIterator<Item = (String, String)>>(headers: I) -> Self {
+        Self {
+            map: BTreeMap::from_iter(headers),
+        }
     }
 }
 

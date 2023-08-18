@@ -1,8 +1,12 @@
+use std::str::FromStr;
+
 use crate::error::Result;
 use crate::io::AsClient;
-use crate::message::Uri;
+use crate::message::{Method, StatusCategory, Uri};
 use crate::request::Request;
+use crate::response::Response;
 use crate::tokio_codec::Codec;
+use crate::MaybeInterleaved;
 
 use futures::SinkExt;
 
@@ -11,6 +15,17 @@ use tokio_stream::StreamExt;
 type FramedRead = tokio_util::codec::FramedRead<tokio::net::tcp::OwnedReadHalf, Codec<AsClient>>;
 type FramedWrite = tokio_util::codec::FramedWrite<tokio::net::tcp::OwnedWriteHalf, Codec<AsClient>>;
 
+/// RTSP client.
+///
+/// Communicate with RTSP servers. The [`Client`] handles request and response,
+/// serialization and deserialization, redirection and error handling.
+///
+/// # Example
+///
+/// ```
+/// let client = Client::connect("rtsp://localhost/stream").await.unwrap();
+/// println!("{:?}", client.options().await.unwrap());
+/// ```
 pub struct Client {
     addr: std::net::SocketAddr,
     uri: Uri,
@@ -23,15 +38,22 @@ pub struct Client {
 impl Client {
     pub async fn connect(uri: &Uri) -> Result<Client> {
         let http::uri::Parts {
-            scheme,
-            authority,
-            path_and_query,
-            ..
-        } = uri.into_parts();
-        if let Some("rtsp") = scheme {
-            todo!()
-        } else {
-            todo!() // ERR
+            scheme, authority, ..
+        } = uri.clone().into_parts();
+        // TODO: handle error
+        let authority = authority.unwrap();
+        match scheme {
+            Some(scheme) if scheme.as_str() == "rtsp" => {
+                let host = authority.host();
+                let port = authority.port_u16().unwrap_or(554);
+                let mut addrs = tokio::net::lookup_host((host, port)).await?;
+                let addr = addrs.next().unwrap(); // TODO: handle error
+                Self::connect_inner(addr, uri.clone()).await
+            }
+            _ => {
+                // TODO: error
+                todo!()
+            }
         }
     }
 
@@ -61,6 +83,7 @@ impl Client {
         let write = FramedWrite::new(write, Codec::<AsClient>::new());
         Ok(Self {
             addr,
+            uri,
             read,
             write,
             sequencer: Sequencer::new(),
@@ -68,10 +91,41 @@ impl Client {
         })
     }
 
-    pub async fn options(&mut self) {
-        // TODO: cseq sequencer
-        // TODO: let request = Request::options(uri, self.sequencer.sequence())
-        todo!()
+    pub async fn options(&mut self) -> Result<Vec<Method>> {
+        let cseq = self.sequencer.sequence();
+        self.send(Request::options(&self.uri, cseq)).await?;
+        let response = self.receive().await?;
+        Ok(response
+            .headers
+            .get("Public")
+            .unwrap_or("")
+            .split(',')
+            // parse methods, trimming each method string, and leaving out
+            // invalid methods that could not be parsed
+            .filter_map(|method| Method::from_str(method.trim()).ok())
+            .collect())
+    }
+
+    #[inline]
+    async fn send(&mut self, request: Request) -> Result<()> {
+        self.write.send(request.into()).await
+    }
+
+    #[inline]
+    async fn receive(&mut self) -> Result<Response> {
+        // TODO: impl is quite easy: just handle unexpected None and interleaved as errors
+        let response = match self.read.next().await {
+            Some(Ok(MaybeInterleaved::Message(response))) => Ok(response),
+            Some(Ok(MaybeInterleaved::Interleaved { .. })) => Err(todo!()),
+            Some(Err(err)) => Err(err),
+            None => Err(todo!()),
+        }?;
+        // TODO: handle redirection
+        if response.status() == StatusCategory::Success {
+            Ok(response)
+        } else {
+            Err(todo!())
+        }
     }
 
     // TODO: other client calls

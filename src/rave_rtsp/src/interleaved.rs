@@ -19,6 +19,12 @@ pub enum MaybeInterleaved<M: Message> {
     Interleaved { channel: ChannelId, payload: Bytes },
 }
 
+impl<M: Message> From<M> for MaybeInterleaved<M> {
+    fn from(message: M) -> Self {
+        MaybeInterleaved::Message(message)
+    }
+}
+
 impl<M: Message> std::fmt::Display for MaybeInterleaved<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
