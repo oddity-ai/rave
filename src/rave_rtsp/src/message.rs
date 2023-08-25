@@ -18,12 +18,6 @@ pub struct Headers {
     map: BTreeMap<String, String>,
 }
 
-// // TODO: better place for this (maybe newtype `Headers` and this?)
-// pub fn headers_with_cseq(cseq: usize) -> Headers {
-//     let mut headers = std::collections::BTreeMap::new();
-//     headers.insert("CSeq".to_string(), cseq.to_string());
-//     headers
-// }
 impl Headers {
     pub fn new() -> Self {
         Self {
@@ -215,6 +209,12 @@ pub enum Status {
     OptionNotSupported,
 }
 
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{} {}", status_to_code(*self), status_to_reason(*self))
+    }
+}
+
 pub(crate) fn status_to_code(status: Status) -> StatusCode {
     match status {
         Status::Continue => 100,
@@ -260,6 +260,55 @@ pub(crate) fn status_to_code(status: Status) -> StatusCode {
         Status::GatewayTimeout => 504,
         Status::RTSPVersionNotSupported => 505,
         Status::OptionNotSupported => 551,
+    }
+}
+
+pub(crate) fn status_from_code(code: StatusCode) -> Option<Status> {
+    match code {
+        100 => Some(Status::Continue),
+        200 => Some(Status::Ok),
+        201 => Some(Status::Created),
+        250 => Some(Status::LowonStorageSpace),
+        300 => Some(Status::MultipleChoices),
+        301 => Some(Status::MovedPermanently),
+        302 => Some(Status::MovedTemporarily),
+        303 => Some(Status::SeeOther),
+        305 => Some(Status::UseProxy),
+        400 => Some(Status::BadRequest),
+        401 => Some(Status::Unauthorized),
+        402 => Some(Status::PaymentRequired),
+        403 => Some(Status::Forbidden),
+        404 => Some(Status::NotFound),
+        405 => Some(Status::MethodNotAllowed),
+        406 => Some(Status::NotAcceptable),
+        407 => Some(Status::ProxyAuthenticationRequired),
+        408 => Some(Status::RequestTimeout),
+        410 => Some(Status::Gone),
+        411 => Some(Status::LengthRequired),
+        412 => Some(Status::PreconditionFailed),
+        413 => Some(Status::RequestEntityTooLarge),
+        414 => Some(Status::RequestUriTooLong),
+        415 => Some(Status::UnsupportedMediaType),
+        451 => Some(Status::InvalidParameter),
+        452 => Some(Status::IllegalConferenceIdentifier),
+        453 => Some(Status::NotEnoughBandwidth),
+        454 => Some(Status::SessionNotFound),
+        455 => Some(Status::MethodNotValidInThisState),
+        456 => Some(Status::HeaderFieldNotValid),
+        457 => Some(Status::InvalidRange),
+        458 => Some(Status::ParameterIsReadOnly),
+        459 => Some(Status::AggregateOperationNotAllowed),
+        460 => Some(Status::OnlyAggregateOperationAllowed),
+        461 => Some(Status::UnsupportedTransport),
+        462 => Some(Status::DestinationUnreachable),
+        500 => Some(Status::InternalServerError),
+        501 => Some(Status::NotImplemented),
+        502 => Some(Status::BadGateway),
+        503 => Some(Status::ServiceUnavailable),
+        504 => Some(Status::GatewayTimeout),
+        505 => Some(Status::RTSPVersionNotSupported),
+        551 => Some(Status::OptionNotSupported),
+        _ => None,
     }
 }
 
