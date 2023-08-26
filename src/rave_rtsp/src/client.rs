@@ -46,11 +46,23 @@ impl Client {
             Some(scheme) if scheme.as_str() == "rtsp" => {
                 let host = authority.host();
                 let port = authority.port_u16().unwrap_or(554);
-                let mut addrs = tokio::net::lookup_host((host, port)).await?;
-                let addr = addrs.next().ok_or_else(|| ClientError::Resolve {
-                    name: host.to_string(),
-                })?;
-                Self::connect_inner(addr, uri.clone()).await
+                let addrs = tokio::net::lookup_host((host, port))
+                    .await?
+                    .collect::<Vec<_>>();
+                if !addrs.is_empty() {
+                    let mut errors = Vec::new();
+                    for addr in addrs {
+                        match Self::connect_inner(addr, uri.clone()).await {
+                            Ok(client) => return Ok(client),
+                            Err(err) => errors.push(err),
+                        }
+                    }
+                    todo!()
+                } else {
+                    Err(ClientError::Resolve {
+                        name: host.to_string(),
+                    })
+                }
             }
             Some(scheme) => Err(ClientError::UriUnsupportedProtocolScheme {
                 scheme: scheme.to_string(),
@@ -198,6 +210,8 @@ pub enum ClientError {
     UriUnsupportedProtocolScheme { scheme: String },
     /// URI missing protocol scheme.
     UriMissingProtocolScheme,
+    /// Could not connect.
+    Connect { errors: Vec<std::io::Error> },
     /// Could not resolve server.
     Resolve { name: String },
     /// Non-successful status code.
@@ -224,6 +238,17 @@ impl std::fmt::Display for ClientError {
                 write!(f, "uri has unsupported protocol scheme: {scheme}")
             }
             ClientError::UriMissingProtocolScheme => write!(f, "uri missing protocol scheme"),
+            ClientError::Connect { errors } => {
+                write!(
+                    f,
+                    "failed to connect: {}",
+                    errors
+                        .iter()
+                        .map(|err| format!("{}", err))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             ClientError::Resolve { name } => write!(f, "failed to resolve server name: {name}"),
             ClientError::Status(response) => write!(
                 f,

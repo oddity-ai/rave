@@ -19,5 +19,8 @@ tokio = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }
 tokio-util = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt"] }
+
 [features]
 client = ["dep:tokio", "dep:tokio-stream", "dep:futures"]
