@@ -29,7 +29,6 @@ type FramedWrite = tokio_util::codec::FramedWrite<tokio::net::tcp::OwnedWriteHal
 /// println!("{:?}", client.options().await.unwrap());
 /// ```
 pub struct Client {
-    addr: std::net::SocketAddr,
     uri: Uri,
     read: FramedRead,
     write: FramedWrite,
@@ -84,7 +83,6 @@ impl Client {
         let read = FramedRead::new(read, Codec::<AsClient>::new());
         let write = FramedWrite::new(write, Codec::<AsClient>::new());
         Ok(Self {
-            addr,
             uri,
             read,
             write,
