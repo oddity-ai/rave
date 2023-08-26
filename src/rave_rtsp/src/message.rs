@@ -40,6 +40,10 @@ impl Headers {
         self.map.insert(key, value)
     }
 
+    pub fn extend(&mut self, headers: Headers) {
+        self.map.extend(headers.map)
+    }
+
     pub fn contains(&self, key: &str) -> bool {
         self.map.contains_key(key)
     }

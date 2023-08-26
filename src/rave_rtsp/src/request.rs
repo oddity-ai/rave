@@ -27,6 +27,8 @@ impl Message for Request {
 }
 
 impl Request {
+    // TODO: these convenience functions may not be necessary (keep them?)
+
     pub fn options(uri: &Uri, cseq: usize) -> Self {
         Request::new(
             RequestMetadata::new_v1(Method::Options, uri.clone()),

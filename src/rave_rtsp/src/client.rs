@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
 use crate::error::Error;
+use crate::interleaved::{MaybeInterleaved, RequestMaybeInterleaved};
 use crate::io::AsClient;
-use crate::message::{Method, StatusCategory, Uri};
-use crate::request::Request;
+use crate::message::{status_from_code, Headers, Message, Method, StatusCategory, Uri};
+use crate::request::{Request, RequestMetadata};
 use crate::response::Response;
 use crate::tokio_codec::Codec;
-use crate::{MaybeInterleaved, RequestMaybeInterleaved};
 
 use futures::SinkExt;
 
@@ -94,9 +94,7 @@ impl Client {
     }
 
     pub async fn options(&mut self) -> Result<Vec<Method>> {
-        let cseq = self.sequencer.sequence();
-        let request = Request::options(&self.uri, cseq);
-        let response = self.request(request).await?;
+        let response = self.request(Method::Options, Headers::new()).await?;
         Ok(response
             .headers
             .get("Public")
@@ -110,11 +108,10 @@ impl Client {
 
     // TODO: other client calls
 
-    #[inline]
-    async fn request(&mut self, mut request: Request) -> Result<Response> {
+    async fn request(&mut self, method: Method, headers: Headers) -> Result<Response> {
         for _request_count in 0..20 {
             let response = self
-                .request_without_redirect_handling(request.clone())
+                .request_without_redirect_handling(method, headers.clone())
                 .await?;
             match response.status() {
                 StatusCategory::Success => return Ok(response),
@@ -123,15 +120,15 @@ impl Client {
                         .headers
                         .get("Location")
                         .ok_or(ClientError::InvalidRedirect)?;
-                    // replace path and query in request with contents of location
+                    // replace path and query in request URI with contents of location
                     // header (assuming it parses correctly)
-                    let mut request_uri_parts = request.uri.into_parts();
+                    let mut request_uri_parts = self.uri.clone().into_parts();
                     request_uri_parts.path_and_query = Some(
                         location
                             .parse::<http::uri::PathAndQuery>()
                             .map_err(|_| ClientError::InvalidRedirect)?,
                     );
-                    request.uri = Uri::from_parts(request_uri_parts)
+                    self.uri = Uri::from_parts(request_uri_parts)
                         .map_err(|_| ClientError::InvalidRedirect)?;
                     continue;
                 }
@@ -141,8 +138,22 @@ impl Client {
         Err(ClientError::MaximumNumberOfRedirectsReached)
     }
 
-    #[inline]
-    async fn request_without_redirect_handling(&mut self, request: Request) -> Result<Response> {
+    async fn request_without_redirect_handling(
+        &mut self,
+        method: Method,
+        additional_headers: Headers,
+    ) -> Result<Response> {
+        let cseq = self.sequencer.sequence();
+        let mut headers = match self.session.as_ref() {
+            Some(session) => Headers::with_cseq_and_session(cseq, session),
+            None => Headers::with_cseq(cseq),
+        };
+        headers.extend(additional_headers);
+        let request = Request::new(
+            RequestMetadata::new_v1(method, self.uri.clone()),
+            headers,
+            None,
+        );
         self.write
             .send(RequestMaybeInterleaved::Message(request))
             .await?;
@@ -216,7 +227,14 @@ impl std::fmt::Display for ClientError {
             }
             ClientError::UriMissingProtocolScheme => write!(f, "uri missing protocol scheme"),
             ClientError::Resolve { name } => write!(f, "failed to resolve server name: {name}"),
-            ClientError::Status(response) => write!(f, "response status code: {}", response.status),
+            ClientError::Status(response) => write!(
+                f,
+                "response status code: {}",
+                match status_from_code(response.status) {
+                    Some(status) => format!("{}", status),
+                    None => response.status.to_string(),
+                }
+            ),
             ClientError::Protocol(error) => write!(f, "{}", error),
             ClientError::ConnectionClosed => write!(f, "connection closed"),
             ClientError::UnexpectedInterleavedMessage => {
