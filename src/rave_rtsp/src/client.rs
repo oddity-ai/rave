@@ -8,6 +8,8 @@ use crate::request::{Request, RequestMetadata};
 use crate::response::Response;
 use crate::tokio_codec::Codec;
 
+use rave_sdp::Sdp;
+
 use futures::SinkExt;
 
 use tokio_stream::StreamExt;
@@ -116,6 +118,16 @@ impl Client {
             .collect())
     }
 
+    pub async fn describe(&mut self) -> Result<Sdp> {
+        let response = self.request(Method::Describe, Headers::new()).await?;
+        if let Some(body) = response.body {
+            // sdp is always UTF-8 (RFC 2327, 6)
+            Ok(Sdp::parse(&String::from_utf8_lossy(&body))?)
+        } else {
+            Err(ClientError::MissingSdp)
+        }
+    }
+
     // TODO: other client calls
 
     async fn request(&mut self, method: Method, headers: Headers) -> Result<Response> {
@@ -218,6 +230,10 @@ pub enum ClientError {
     Status(Response),
     /// Protocol error.
     Protocol(Error),
+    /// Missing SDP content.
+    MissingSdp,
+    /// Invalid SDP content.
+    InvalidSdp(rave_sdp::Error),
     /// Connection unexpectedly closed.
     ConnectionClosed,
     /// Received unexpected interleaved data response from server.
@@ -259,6 +275,11 @@ impl std::fmt::Display for ClientError {
                 }
             ),
             ClientError::Protocol(error) => write!(f, "{}", error),
+            ClientError::MissingSdp => write!(
+                f,
+                "expected request to carry a session description but it does not"
+            ),
+            ClientError::InvalidSdp(error) => write!(f, "{}", error),
             ClientError::ConnectionClosed => write!(f, "connection closed"),
             ClientError::UnexpectedInterleavedMessage => {
                 write!(
@@ -281,6 +302,12 @@ impl std::fmt::Display for ClientError {
 impl std::convert::From<Error> for ClientError {
     fn from(error: Error) -> Self {
         ClientError::Protocol(error)
+    }
+}
+
+impl std::convert::From<rave_sdp::Error> for ClientError {
+    fn from(error: rave_sdp::Error) -> Self {
+        ClientError::InvalidSdp(error)
     }
 }
 
