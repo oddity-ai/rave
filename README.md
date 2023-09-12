@@ -25,6 +25,16 @@
 Note that `rave` is not meant to be a replacement for `ffmpeg`. Use `ffmpeg` if you need support for
 many formats and codecs.
 
+## ✨ Credits
+
+`rave` only exists thanks to the following organizations and people:
+
+* Everyone who worked on [video-rs](https://github.com/oddity-ai/video-rs)!
+* [Cisco](https://cisco.com) for developing [openh264](https://github.com/cisco/openh264).
+* [Ralf Biedert](https://github.com/ralfbiedert) for maintaining [`openh264-rs`](https://github.com/ralfbiedert/openh264-rs), a Rust wrapper for `openh264`.
+* [Provincie Utrecht](https://www.provincie-utrecht.nl/) for supporting this project as part of the "Situational Awareness Software" project.
+* The [FFmpeg project](https://ffmpeg.org/) for `ffmpeg` and the `ffmpeg` libraries.
+
 ## ⚖️ License
 
 Licensed under either of
