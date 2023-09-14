@@ -7,6 +7,7 @@ use crate::message::{status_from_code, Headers, Message, Method, StatusCategory,
 use crate::request::{Request, RequestMetadata};
 use crate::response::Response;
 use crate::tokio_codec::Codec;
+use crate::transport::Transport;
 
 use rave_sdp::Sdp;
 
@@ -128,6 +129,22 @@ impl Client {
         }
     }
 
+    pub async fn setup(&mut self, preferred_transport: Transport) -> Result<Transport> {
+        let headers =
+            Headers::from_iter([("Transport".to_string(), preferred_transport.to_string())]);
+        let response = self.request(Method::Setup, headers).await?;
+        if let Some(session) = response.headers.get("Session") {
+            self.session = Some(session.to_string());
+        }
+        let transport = Transport::from_str(
+            response
+                .headers
+                .get("Transport")
+                .ok_or(ClientError::MissingTransport)?,
+        )?;
+        Ok(transport)
+    }
+
     // TODO: other client calls
 
     async fn request(&mut self, method: Method, headers: Headers) -> Result<Response> {
@@ -234,6 +251,8 @@ pub enum ClientError {
     MissingSdp,
     /// Invalid SDP content.
     InvalidSdp(rave_sdp::Error),
+    /// Missing transport header.
+    MissingTransport,
     /// Connection unexpectedly closed.
     ConnectionClosed,
     /// Received unexpected interleaved data response from server.
@@ -277,9 +296,13 @@ impl std::fmt::Display for ClientError {
             ClientError::Protocol(error) => write!(f, "{}", error),
             ClientError::MissingSdp => write!(
                 f,
-                "expected request to carry a session description but it does not"
+                "expected response to carry a session description but it does not"
             ),
             ClientError::InvalidSdp(error) => write!(f, "{}", error),
+            ClientError::MissingTransport => write!(
+                f,
+                "expected response to carry transport information but it does not"
+            ),
             ClientError::ConnectionClosed => write!(f, "connection closed"),
             ClientError::UnexpectedInterleavedMessage => {
                 write!(
