@@ -59,7 +59,7 @@ impl Client {
                             Err(err) => errors.push(err),
                         }
                     }
-                    todo!()
+                    Err(ClientError::Connect { errors })
                 } else {
                     Err(ClientError::Resolve {
                         name: host.to_string(),
@@ -223,7 +223,7 @@ pub enum ClientError {
     /// URI missing protocol scheme.
     UriMissingProtocolScheme,
     /// Could not connect.
-    Connect { errors: Vec<std::io::Error> },
+    Connect { errors: Vec<ClientError> },
     /// Could not resolve server.
     Resolve { name: String },
     /// Non-successful status code.
