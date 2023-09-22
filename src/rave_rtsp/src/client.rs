@@ -4,8 +4,10 @@ use crate::error::Error;
 use crate::interleaved::{MaybeInterleaved, RequestMaybeInterleaved};
 use crate::io::AsClient;
 use crate::message::{status_from_code, Headers, Message, Method, StatusCategory, Uri};
+use crate::range::Range;
 use crate::request::{Request, RequestMetadata};
 use crate::response::Response;
+use crate::rtp_info::RtpInfo;
 use crate::tokio_codec::Codec;
 use crate::transport::Transport;
 
@@ -145,7 +147,30 @@ impl Client {
         Ok(transport)
     }
 
-    // TODO: other client calls
+    pub async fn play(&mut self, range: Option<&Range>) -> Result<RtpInfo> {
+        let mut headers = Headers::new();
+        if let Some(range) = range {
+            headers.insert("Range".to_string(), range.to_string());
+        }
+        let response = self.request(Method::Play, headers).await?;
+        let rtp_info = RtpInfo::from_str(
+            response
+                .headers
+                .get("RTP-Info")
+                .ok_or(ClientError::MissingRtpInfo)?,
+        )?;
+        Ok(rtp_info)
+    }
+
+    pub async fn pause(&mut self) -> Result<()> {
+        let _ = self.request(Method::Pause, Headers::new()).await?;
+        Ok(())
+    }
+
+    pub async fn teardown(&mut self) -> Result<()> {
+        let _ = self.request(Method::Teardown, Headers::new()).await?;
+        Ok(())
+    }
 
     async fn request(&mut self, method: Method, headers: Headers) -> Result<Response> {
         for _request_count in 0..20 {
@@ -253,6 +278,8 @@ pub enum ClientError {
     InvalidSdp(rave_sdp::Error),
     /// Missing transport header.
     MissingTransport,
+    /// Missing RTP-Info.
+    MissingRtpInfo,
     /// Connection unexpectedly closed.
     ConnectionClosed,
     /// Received unexpected interleaved data response from server.
@@ -303,6 +330,9 @@ impl std::fmt::Display for ClientError {
                 f,
                 "expected response to carry transport information but it does not"
             ),
+            ClientError::MissingRtpInfo => {
+                write!(f, "expected response to carry RTP info but it does not")
+            }
             ClientError::ConnectionClosed => write!(f, "connection closed"),
             ClientError::UnexpectedInterleavedMessage => {
                 write!(
