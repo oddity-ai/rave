@@ -1084,3 +1084,5 @@ Cargo.lock
 *.pdb
 
 resources/
+
+flake.lock
