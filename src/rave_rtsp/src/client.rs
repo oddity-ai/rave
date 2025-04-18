@@ -1,3 +1,5 @@
+// TODO: Split out client. It should not be part of the protocol crate.
+
 use std::str::FromStr;
 
 use crate::error::Error;
