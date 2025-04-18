@@ -1,15 +1,14 @@
 [workspace]
 members = [
-    "src/rave",
-    "src/rave_h264",
-    "src/rave_h264_nvidia",
-    "src/rave_mp4",
-    "src/rave_ops",
-    "src/rave_ops_nvidia",
-    "src/rave_rtp",
-    "src/rave_rtsp",
-    "src/rave_sdp",
-    "src/rave_types",
+  "src/rave_h264",
+  "src/rave_h264_nvidia",
+  "src/rave_mp4",
+  "src/rave_ops",
+  "src/rave_ops_nvidia",
+  "src/rave_rtp",
+  "src/rave_rtsp",
+  "src/rave_sdp",
+  "src/rave_types",
 ]
 
 [workspace.package]
@@ -23,11 +22,11 @@ repository = "https://github.com/oddity-ai/rave"
 authors = ["Oddity.ai Developers <hello@oddity.ai>"]
 
 [workspace.dependencies]
-base64 = "0.21"
+base64 = "0.22"
 bytes = { version = "1.4" }
 futures = { version = "0.3", default-features = false, features = ["std"] }
-http = "0.2"
-rand = { version = "0.8" }
+http = "1.3"
+rand = { version = "0.9" }
 rave_h264 = { path = "src/rave_h264" }
 rave_h264_nvidia = { path = "src/rave_h264_nvidia" }
 rave_mp4 = { path = "src/rave_mp4" }
@@ -38,11 +37,11 @@ rave_rtsp = { path = "src/rave_rtsp" }
 rave_sdp = { path = "src/rave_sdp" }
 rave_types = { path = "src/rave_types" }
 tokio = { version = "1.0", default-features = false, features = [
-    "io-util",
-    "io-std",
-    "macros",
-    "net",
-    "bytes",
+  "io-util",
+  "io-std",
+  "macros",
+  "net",
+  "bytes",
 ] }
 tokio-stream = { version = "0.1", default-features = false }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
