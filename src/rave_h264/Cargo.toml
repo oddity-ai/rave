@@ -12,5 +12,5 @@ authors.workspace = true
 
 [dependencies]
 bytes = { workspace = true }
-openh264 = "=0.4.4"
+openh264 = "=0.8.0"
 rave_types = { workspace = true }

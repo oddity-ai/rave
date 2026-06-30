@@ -22,7 +22,10 @@ impl Encoder {
 
     pub fn with_config(config: Config) -> Result<Self> {
         Ok(Self {
-            inner: openh264::encoder::Encoder::with_config(config)?,
+            inner: openh264::encoder::Encoder::with_api_config(
+                openh264::OpenH264API::from_source(),
+                config,
+            )?,
         })
     }
 }
@@ -65,13 +68,17 @@ impl From<Yuv420pFrame> for CompatibleYuv420pFrame {
 
 impl openh264::formats::YUVSource for CompatibleYuv420pFrame {
     #[inline]
-    fn width(&self) -> i32 {
-        self.inner.dims.0.try_into().unwrap()
+    fn dimensions(&self) -> (usize, usize) {
+        self.inner.dims
     }
 
     #[inline]
-    fn height(&self) -> i32 {
-        self.inner.dims.1.try_into().unwrap()
+    fn strides(&self) -> (usize, usize, usize) {
+        (
+            self.inner.data.planes[0].stride,
+            self.inner.data.planes[1].stride,
+            self.inner.data.planes[2].stride,
+        )
     }
 
     #[inline]
@@ -87,20 +94,5 @@ impl openh264::formats::YUVSource for CompatibleYuv420pFrame {
     #[inline]
     fn v(&self) -> &[u8] {
         &self.inner.data.planes[2].data
-    }
-
-    #[inline]
-    fn y_stride(&self) -> i32 {
-        self.inner.dims.0.try_into().unwrap()
-    }
-
-    #[inline]
-    fn u_stride(&self) -> i32 {
-        self.inner.dims.0.try_into().unwrap()
-    }
-
-    #[inline]
-    fn v_stride(&self) -> i32 {
-        self.inner.dims.0.try_into().unwrap()
     }
 }

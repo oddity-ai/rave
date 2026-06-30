@@ -4,6 +4,7 @@ use rave_types::device::Local;
 use rave_types::format::{Planar, Plane, Yuv420p};
 use rave_types::frame::Yuv420pFrame;
 use rave_types::unit::Unit;
+use openh264::formats::YUVSource;
 
 use crate::error::Error;
 
@@ -36,24 +37,24 @@ impl Decode for Decoder {
 }
 
 fn convert_frame(frame: openh264::decoder::DecodedYUV) -> Yuv420pFrame {
-    let (stride_y, stride_u, stride_v) = frame.strides_yuv();
+    let (stride_y, stride_u, stride_v) = frame.strides();
     Yuv420pFrame::new(
         Planar {
             planes: [
                 Plane {
-                    data: frame.y_with_stride().to_vec(),
+                    data: frame.y().to_vec(),
                     stride: stride_y,
                 },
                 Plane {
-                    data: frame.u_with_stride().to_vec(),
+                    data: frame.u().to_vec(),
                     stride: stride_u,
                 },
                 Plane {
-                    data: frame.v_with_stride().to_vec(),
+                    data: frame.v().to_vec(),
                     stride: stride_v,
                 },
             ],
         },
-        frame.dimension_rgb(),
+        frame.dimensions(),
     )
 }
