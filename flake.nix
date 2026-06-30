@@ -1,9 +1,9 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    flake-utils.url = "github:numtide/flake-utils/11707dc2f618dd54ca8739b309ec4fc024de578b";
     rust-overlay = {
-      url = "github:oxalica/rust-overlay";
+      url = "github:oxalica/rust-overlay/06f25b8e40805beb2121a4dae4cc37d6f981800f";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

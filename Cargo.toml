@@ -22,26 +22,26 @@ repository = "https://github.com/oddity-ai/rave"
 authors = ["Oddity.ai Developers <hello@oddity.ai>"]
 
 [workspace.dependencies]
-base64 = "0.22"
-bytes = { version = "1.4" }
-futures = { version = "0.3", default-features = false, features = ["std"] }
-http = "1.3"
-rand = { version = "0.9" }
-rave_h264 = { path = "src/rave_h264" }
-rave_h264_nvidia = { path = "src/rave_h264_nvidia" }
-rave_mp4 = { path = "src/rave_mp4" }
-rave_ops = { path = "src/rave_ops" }
-rave_ops_nvidia = { path = "src/rave_ops_nvidia" }
-rave_rtp = { path = "src/rave_rtp" }
-rave_rtsp = { path = "src/rave_rtsp" }
-rave_sdp = { path = "src/rave_sdp" }
-rave_types = { path = "src/rave_types" }
-tokio = { version = "1.0", default-features = false, features = [
+base64 = "=0.22.1"
+bytes = { version = "=1.12.0" }
+futures = { version = "=0.3.32", default-features = false, features = ["std"] }
+http = "=1.4.2"
+rand = { version = "=0.9.4" }
+rave_h264 = { path = "src/rave_h264", version = "=0.1.1" }
+rave_h264_nvidia = { path = "src/rave_h264_nvidia", version = "=0.1.1" }
+rave_mp4 = { path = "src/rave_mp4", version = "=0.1.1" }
+rave_ops = { path = "src/rave_ops", version = "=0.1.1" }
+rave_ops_nvidia = { path = "src/rave_ops_nvidia", version = "=0.1.1" }
+rave_rtp = { path = "src/rave_rtp", version = "=0.1.1" }
+rave_rtsp = { path = "src/rave_rtsp", version = "=0.1.1" }
+rave_sdp = { path = "src/rave_sdp", version = "=0.1.1" }
+rave_types = { path = "src/rave_types", version = "=0.1.1" }
+tokio = { version = "=1.52.3", default-features = false, features = [
   "io-util",
   "io-std",
   "macros",
   "net",
   "bytes",
 ] }
-tokio-stream = { version = "0.1", default-features = false }
-tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
+tokio-stream = { version = "=0.1.18", default-features = false }
+tokio-util = { version = "=0.7.18", default-features = false, features = ["codec"] }
