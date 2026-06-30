@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
   "src/rave_h264",
   "src/rave_h264_nvidia",
@@ -12,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 categories = ["multimedia", "multimedia::audio", "multimedia::video"]
 keywords = ["rave", "audio", "video", "media", "h264"]
@@ -27,15 +28,15 @@ bytes = { version = "=1.12.0" }
 futures = { version = "=0.3.32", default-features = false, features = ["std"] }
 http = "=1.4.2"
 rand = { version = "=0.9.4" }
-rave_h264 = { path = "src/rave_h264", version = "=0.1.1" }
-rave_h264_nvidia = { path = "src/rave_h264_nvidia", version = "=0.1.1" }
-rave_mp4 = { path = "src/rave_mp4", version = "=0.1.1" }
-rave_ops = { path = "src/rave_ops", version = "=0.1.1" }
-rave_ops_nvidia = { path = "src/rave_ops_nvidia", version = "=0.1.1" }
-rave_rtp = { path = "src/rave_rtp", version = "=0.1.1" }
-rave_rtsp = { path = "src/rave_rtsp", version = "=0.1.1" }
-rave_sdp = { path = "src/rave_sdp", version = "=0.1.1" }
-rave_types = { path = "src/rave_types", version = "=0.1.1" }
+rave_h264 = { path = "src/rave_h264", version = "=0.1.2" }
+rave_h264_nvidia = { path = "src/rave_h264_nvidia", version = "=0.1.2" }
+rave_mp4 = { path = "src/rave_mp4", version = "=0.1.2" }
+rave_ops = { path = "src/rave_ops", version = "=0.1.2" }
+rave_ops_nvidia = { path = "src/rave_ops_nvidia", version = "=0.1.2" }
+rave_rtp = { path = "src/rave_rtp", version = "=0.1.2" }
+rave_rtsp = { path = "src/rave_rtsp", version = "=0.1.2" }
+rave_sdp = { path = "src/rave_sdp", version = "=0.1.2" }
+rave_types = { path = "src/rave_types", version = "=0.1.2" }
 tokio = { version = "=1.52.3", default-features = false, features = [
   "io-util",
   "io-std",

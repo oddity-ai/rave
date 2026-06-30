@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "rave_h264"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytes",
  "openh264",
@@ -284,26 +284,26 @@ dependencies = [
 
 [[package]]
 name = "rave_h264_nvidia"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "rave_mp4"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "rave_ops"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "rave_types",
 ]
 
 [[package]]
 name = "rave_ops_nvidia"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "rave_rtp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytes",
  "rand",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "rave_rtsp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
  "bytes",
@@ -326,14 +326,14 @@ dependencies = [
 
 [[package]]
 name = "rave_sdp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
 ]
 
 [[package]]
 name = "rave_types"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytes",
 ]
